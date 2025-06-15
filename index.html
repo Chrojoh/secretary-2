@@ -1,9 +1,1523 @@
-<!DOCTYPE html>
+breed: document.getElementById('entryBreed').value,
+                dogDOB: document.getElementById('entryDogDOB').value,
+                specialNeeds: document.getElementById('entrySpecialNeeds').value,
+                emergencyContact: document.getElementById('entryEmergencyContact').value,
+                classes: Array.from(selectedClasses).map(cb => ({
+                    className: cb.value,
+                    day: cb.dataset.day || '0'
+                })),
+                entryMethod: 'online',
+                submittedAt: new Date().toISOString(),
+                status: 'confirmed'
+            };
+            
+            // Save entry
+            if (!currentTrialForEntry.entries) {
+                currentTrialForEntry.entries = [];
+            }
+            currentTrialForEntry.entries.push(entry);
+            
+            // Update trials array
+            const trialIndex = trials.findIndex(t => t.id === currentTrialForEntry.id);
+            if (trialIndex !== -1) {
+                trials[trialIndex] = currentTrialForEntry;
+                saveTrialsToStorage();
+            }
+            
+            // Show success message
+            document.getElementById('entryFormContent').classList.add('hidden');
+            document.getElementById('entrySuccess').classList.remove('hidden');
+            document.getElementById('confirmationId').textContent = entry.id;
+        }
+
+        function printEntryForm() {
+            // Create a printable version of the entry form
+            const printWindow = window.open('', '_blank');
+            const trial = currentTrialForEntry;
+            
+            const printContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Trial Entry Form</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        .header { text-align: center; margin-bottom: 30px; }
+                        .form-group { margin-bottom: 15px; }
+                        .form-group label { font-weight: bold; }
+                        .checkbox-line { margin: 10px 0; }
+                        input[type="text"], input[type="email"], input[type="tel"], textarea { 
+                            border: none; border-bottom: 1px solid #000; width: 200px; 
+                        }
+                        .signature-line { margin-top: 30px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h2>C-WAGS Trial Entry Form</h2>
+                        <p><strong>${trial.type === 'standalone' ? trial.className : 'League Trial'}</strong></p>
+                        <p>${trial.hostName} - ${trial.location}</p>
+                        <p>Date(s): ${trial.type === 'standalone' ? 
+                            new Date(trial.date).toLocaleDateString() : 
+                            trial.days.map(day => new Date(day.date).toLocaleDateString()).join(', ')}</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Owner/Handler Name:</label> ________________________________
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Address:</label><br>
+                        _________________________________________________________________<br>
+                        _________________________________________________________________
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Phone:</label> _________________ <label>Email:</label> _________________
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Dog's Call Name:</label> ________________________________
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Dog's Full Registered Name:</label> ________________________________
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Breed:</label> _________________ <label>DOB:</label> _________________
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Emergency Contact:</label> ________________________________
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Special Accommodations:</label><br>
+                        _________________________________________________________________
+                    </div>
+                    
+                    <div class="form-group">
+                        <h4>Class Selection (check all that apply):</h4>
+                        ${trial.type === 'standalone' ? 
+                            `<div class="checkbox-line">☐ ${trial.className} - ${trial.rounds.length} round(s)</div>` :
+                            trial.days.map(day => 
+                                `<p><strong>Day ${day.day} - ${new Date(day.date).toLocaleDateString()}:</strong></p>` +
+                                day.classes.map(cls => 
+                                    `<div class="checkbox-line">☐ ${cls.className} - ${cls.rounds.length} round(s)</div>`
+                                ).join('')
+                            ).join('')}
+                    </div>
+                    
+                    <div class="signature-line">
+                        <p><strong>Waiver of Liability:</strong> ☐ I agree to the trial rules and waiver of liability</p>
+                        <p>Signature: ________________________________ Date: ___________</p>
+                    </div>
+                    
+                    <div style="margin-top: 30px; border: 1px solid #000; padding: 15px;">
+                        <h4>Mail Entry To:</h4>
+                        <p>${trial.contactName}<br>
+                        ${trial.hostName}<br>
+                        Email: ${trial.contactEmail}<br>
+                        Phone: ${trial.contactPhone}</p>
+                        <p><strong>Entry Deadline:</strong> ${new Date(calculateEditDeadline(trial)).toLocaleDateString()}</p>
+                    </div>
+                </body>
+                </html>
+            `;
+            
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            printWindow.print();
+        }
+
+        // Manual entry functions
+        function showManualEntryForm() {
+            const trialId = document.getElementById('entriesTrial').value;
+            if (!trialId) {
+                alert('Please select a trial first');
+                return;
+            }
+            
+            const trial = trials.find(t => t.id === trialId);
+            if (!trial) return;
+            
+            document.getElementById('manualEntryForm').classList.remove('hidden');
+            populateManualEntryClassSelection(trial);
+        }
+
+        function populateManualEntryClassSelection(trial) {
+            const classSelection = document.getElementById('manualClassSelection');
+            classSelection.innerHTML = '<h4>Class Selection *</h4>';
+            
+            if (trial.type === 'standalone') {
+                const classDiv = document.createElement('div');
+                classDiv.className = 'checkbox-group';
+                classDiv.innerHTML = `
+                    <input type="checkbox" id="manualClass_${trial.className}" value="${trial.className}">
+                    <label for="manualClass_${trial.className}">${trial.className} - ${trial.rounds.length} round(s)</label>
+                `;
+                classSelection.appendChild(classDiv);
+            } else {
+                trial.days.forEach((day, dayIndex) => {
+                    const dayDiv = document.createElement('div');
+                    dayDiv.style.marginBottom = '15px';
+                    dayDiv.innerHTML = `<h5>Day ${day.day} - ${new Date(day.date).toLocaleDateString()}</h5>`;
+                    
+                    day.classes.forEach((cls, clsIndex) => {
+                        const classDiv = document.createElement('div');
+                        classDiv.className = 'checkbox-group';
+                        classDiv.innerHTML = `
+                            <input type="checkbox" id="manualClass_${dayIndex}_${clsIndex}" value="${cls.className}" data-day="${dayIndex}">
+                            <label for="manualClass_${dayIndex}_${clsIndex}">${cls.className} - ${cls.rounds.length} round(s)</label>
+                        `;
+                        dayDiv.appendChild(classDiv);
+                    });
+                    
+                    classSelection.appendChild(dayDiv);
+                });
+            }
+        }
+
+        function saveManualEntry() {
+            const trialId = document.getElementById('entriesTrial').value;
+            const trial = trials.find(t => t.id === trialId);
+            
+            if (!trial) return;
+            
+            // Validate required fields
+            const ownerName = document.getElementById('manualOwnerName').value;
+            const address = document.getElementById('manualAddress').value;
+            const phone = document.getElementById('manualPhone').value;
+            const dogName = document.getElementById('manualDogName').value;
+            
+            if (!ownerName || !address || !phone || !dogName) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            // Check if at least one class is selected
+            const selectedClasses = document.querySelectorAll('#manualClassSelection input[type="checkbox"]:checked');
+            if (selectedClasses.length === 0) {
+                alert('Please select at least one class');
+                return;
+            }
+            
+            // Create entry object
+            const entry = {
+                id: Date.now().toString(),
+                trialId: trial.id,
+                ownerName: ownerName,
+                address: address,
+                phone: phone,
+                email: document.getElementById('manualEmail').value,
+                dogName: dogName,
+                dogFullName: document.getElementById('manualDogFullName').value,
+                breed: document.getElementById('manualBreed').value,
+                dogDOB: document.getElementById('manualDogDOB').value,
+                specialNeeds: document.getElementById('manualSpecialNeeds').value,
+                emergencyContact: document.getElementById('manualEmergencyContact').value,
+                classes: Array.from(selectedClasses).map(cb => ({
+                    className: cb.value,
+                    day: cb.dataset.day || '0'
+                })),
+                entryMethod: document.getElementById('manualEntryMethod').value,
+                submittedAt: new Date().toISOString(),
+                status: 'confirmed'
+            };
+            
+            // Save entry
+            if (!trial.entries) {
+                trial.entries = [];
+            }
+            trial.entries.push(entry);
+            
+            // Update trials array
+            const trialIndex = trials.findIndex(t => t.id === trialId);
+            if (trialIndex !== -1) {
+                trials[trialIndex] = trial;
+                saveTrialsToStorage();
+            }
+            
+            // Clear form and hide it
+            cancelManualEntry();
+            loadEntries();
+            
+            showNotification('Manual entry saved successfully!', 'success');
+        }
+
+        function cancelManualEntry() {
+            document.getElementById('manualEntryForm').classList.add('hidden');
+            
+            // Clear all form fields
+            document.querySelectorAll('#manualEntryForm input, #manualEntryForm textarea, #manualEntryForm select').forEach(field => {
+                if (field.type === 'checkbox') {
+                    field.checked = false;
+                } else {
+                    field.value = '';
+                }
+            });
+        }
+
+        function loadEntries() {
+            const trialId = document.getElementById('entriesTrial').value;
+            const container = document.getElementById('entriesList');
+            
+            if (!trialId) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            const trial = trials.find(t => t.id === trialId);
+            if (!trial || !trial.entries || trial.entries.length === 0) {
+                container.innerHTML = '<p>No entries found for this trial.</p>';
+                return;
+            }
+            
+            container.innerHTML = `
+                <h3>Entries for ${trial.type === 'standalone' ? trial.className : 'League Trial'}</h3>
+                <p>Total Entries: ${trial.entries.length}</p>
+            `;
+            
+            const entriesGrid = document.createElement('div');
+            entriesGrid.className = 'trial-grid';
+            
+            trial.entries.forEach(entry => {
+                const entryCard = document.createElement('div');
+                entryCard.className = 'trial-card';
+                entryCard.innerHTML = `
+                    <h4>${entry.dogName} - ${entry.ownerName}</h4>
+                    <p><strong>Contact:</strong> ${entry.phone}</p>
+                    <p><strong>Email:</strong> ${entry.email || 'Not provided'}</p>
+                    <p><strong>Breed:</strong> ${entry.breed || 'Not specified'}</p>
+                    <p><strong>Classes:</strong> ${entry.classes.map(c => c.className).join(', ')}</p>
+                    <p><strong>Entry Method:</strong> ${entry.entryMethod}</p>
+                    <p><strong>Submitted:</strong> ${new Date(entry.submittedAt).toLocaleDateString()}</p>
+                    <div>
+                        <button class="btn btn-secondary" onclick="editEntry('${entry.id}')">Edit</button>
+                        <button class="btn" onclick="deleteEntry('${entry.id}')">Delete</button>
+                    </div>
+                `;
+                entriesGrid.appendChild(entryCard);
+            });
+            
+            container.appendChild(entriesGrid);
+        }
+
+        function editEntry(entryId) {
+            // Implementation for editing entries
+            alert('Entry editing feature will be implemented here');
+        }
+
+        function deleteEntry(entryId) {
+            if (!confirm('Are you sure you want to delete this entry?')) return;
+            
+            const trialId = document.getElementById('entriesTrial').value;
+            const trial = trials.find(t => t.id === trialId);
+            
+            if (trial && trial.entries) {
+                trial.entries = trial.entries.filter(entry => entry.id !== entryId);
+                const trialIndex = trials.findIndex(t => t.id === trialId);
+                if (trialIndex !== -1) {
+                    trials[trialIndex] = trial;
+                    saveTrialsToStorage();
+                }
+                loadEntries();
+                showNotification('Entry deleted successfully', 'success');
+            }
+        }
+
+        function exportEntries() {
+            const trialId = document.getElementById('entriesTrial').value;
+            if (!trialId) {
+                alert('Please select a trial first');
+                return;
+            }
+            
+            const trial = trials.find(t => t.id === trialId);
+            if (!trial || !trial.entries || trial.entries.length === 0) {
+                alert('No entries to export');
+                return;
+            }
+            
+            // Create CSV content
+            const headers = [
+                'Entry ID', 'Owner/Handler', 'Address', 'Phone', 'Email', 
+                'Dog Call Name', 'Dog Full Name', 'Breed', 'DOB', 
+                'Classes', 'Entry Method', 'Special Needs', 'Emergency Contact', 
+                'Submitted Date'
+            ];
+            
+            const csvContent = [
+                headers.join(','),
+                ...trial.entries.map(entry => [
+                    entry.id,
+                    `"${entry.ownerName}"`,
+                    `"${entry.address.replace(/\n/g, ' ')}"`,
+                    entry.phone,
+                    entry.email || '',
+                    `"${entry.dogName}"`,
+                    `"${entry.dogFullName || ''}"`,
+                    `"${entry.breed || ''}"`,
+                    entry.dogDOB || '',
+                    `"${entry.classes.map(c => c.className).join('; ')}"`,
+                    entry.entryMethod,
+                    `"${entry.specialNeeds || ''}"`,
+                    `"${entry.emergencyContact || ''}"`,
+                    new Date(entry.submittedAt).toLocaleDateString()
+                ].join(','))
+            ].join('\n');
+            
+            // Download CSV file
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `trial_entries_${trial.id}_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function viewEntryForm() {
+            const trialId = document.getElementById('entriesTrial').value;
+            if (!trialId) {
+                alert('Please select a trial first');
+                return;
+            }
+            
+            const entryFormUrl = `${window.location.origin}${window.location.pathname}?form=entry-form-${trialId}`;
+            window.open(entryFormUrl, '_blank');
+        }
+
+        // Running order functions
+        function loadRunningOrder() {
+            const trialId = document.getElementById('runningOrderTrial').value;
+            const selectedDate = document.getElementById('runningOrderDate').value;
+            
+            if (!trialId) return;
+            
+            const trial = trials.find(t => t.id === trialId);
+            if (!trial) return;
+            
+            // Update date options
+            const dateSelect = document.getElementById('runningOrderDate');
+            dateSelect.innerHTML = '<option value="">Select a date</option>';
+            
+            if (trial.type === 'standalone') {
+                const option = document.createElement('option');
+                option.value = trial.date;
+                option.textContent = trial.date;
+                dateSelect.appendChild(option);
+            } else {
+                trial.days.forEach(day => {
+                    const option = document.createElement('option');
+                    option.value = day.date;
+                    option.textContent = `Day ${day.day} - ${day.date}`;
+                    dateSelect.appendChild(option);
+                });
+            }
+            
+            if (!selectedDate) return;
+            
+            // Load running order for selected date
+            const container = document.getElementById('runningOrderContainer');
+            container.innerHTML = '';
+            
+            // Create columns for each class/round combination
+            const columns = getRunningOrderColumns(trial, selectedDate);
+            
+            columns.forEach((column, index) => {
+                const columnDiv = document.createElement('div');
+                columnDiv.className = 'order-column';
+                columnDiv.innerHTML = `
+                    <h4>${column.title}</h4>
+                    <div id="column-${index}" class="column-content">
+                        ${column.participants.map((participant, pIndex) => `
+                            <div class="participant-item" data-participant="${pIndex}">
+                                <span>${participant.dog} - ${participant.handler}</span>
+                                <div class="move-buttons">
+                                    <button class="move-btn" onclick="moveParticipant(${index}, ${pIndex}, 'up')">↑</button>
+                                    <button class="move-btn" onclick="moveParticipant(${index}, ${pIndex}, 'down')">↓</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(columnDiv);
+            });
+        }
+
+        function getRunningOrderColumns(trial, date) {
+            // Mock data - in production, this would come from actual entries
+            const mockParticipants = [
+                { dog: 'Spot', handler: 'John Smith' },
+                { dog: 'Rover', handler: 'Jane Doe' },
+                { dog: 'Max', handler: 'Bob Johnson' },
+                { dog: 'Bella', handler: 'Sarah Williams' }
+            ];
+            
+            const columns = [];
+            
+            if (trial.type === 'standalone') {
+                trial.rounds.forEach(round => {
+                    columns.push({
+                        title: `${trial.className} - Round ${round.round} - ${round.judge}`,
+                        participants: [...mockParticipants]
+                    });
+                });
+            } else {
+                const dayData = trial.days.find(day => day.date === date);
+                if (dayData) {
+                    dayData.classes.forEach(cls => {
+                        cls.rounds.forEach(round => {
+                            columns.push({
+                                title: `${cls.className} - Round ${round.round} - ${round.judge}`,
+                                participants: [...mockParticipants]
+                            });
+                        });
+                    });
+                }
+            }
+            
+            return columns;
+        }
+
+        function moveParticipant(columnIndex, participantIndex, direction) {
+            const column = document.getElementById(`column-${columnIndex}`);
+            const participants = Array.from(column.children);
+            
+            if (direction === 'up' && participantIndex > 0) {
+                column.insertBefore(participants[participantIndex], participants[participantIndex - 1]);
+            } else if (direction === 'down' && participantIndex < participants.length - 1) {
+                column.insertBefore(participants[participantIndex + 1], participants[participantIndex]);
+            }
+            
+            // Update data attributes
+            Array.from(column.children).forEach((item, index) => {
+                item.setAttribute('data-participant', index);
+                const buttons = item.querySelectorAll('.move-btn');
+                buttons[0].setAttribute('onclick', `moveParticipant(${columnIndex}, ${index}, 'up')`);
+                buttons[1].setAttribute('onclick', `moveParticipant(${columnIndex}, ${index}, 'down')`);
+            });
+        }
+
+        function submitRunningOrder() {
+            const trialId = document.getElementById('runningOrderTrial').value;
+            const selectedDate = document.getElementById('runningOrderDate').value;
+            
+            if (!trialId || !selectedDate) {
+                alert('Please select a trial and date');
+                return;
+            }
+            
+            // Collect running order data
+            const runningOrderData = [];
+            document.querySelectorAll('.order-column').forEach((column, columnIndex) => {
+                const title = column.querySelector('h4').textContent;
+                const participants = Array.from(column.querySelectorAll('.participant-item')).map(item => {
+                    return item.querySelector('span').textContent;
+                });
+                runningOrderData.push({ title, participants });
+            });
+            
+            // Save running order and generate score sheets
+            const trial = trials.find(t => t.id === trialId);
+            if (!trial.runningOrder) trial.runningOrder = {};
+            trial.runningOrder[selectedDate] = runningOrderData;
+            
+            saveTrialsToStorage();
+            
+            // Generate score sheets
+            generateScoreSheets(trial, selectedDate, runningOrderData);
+            
+            alert('Running order submitted and score sheets generated!');
+            showTab('results');
+        }
+
+        function generateScoreSheets(trial, date, runningOrderData) {
+            if (!trial.results) trial.results = {};
+            if (!trial.results[date]) trial.results[date] = {};
+            
+            runningOrderData.forEach(column => {
+                const scoreSheet = {
+                    title: column.title,
+                    participants: column.participants.map(participant => ({
+                        name: participant,
+                        scent1: '',
+                        scent2: '',
+                        scent3: '',
+                        scent4: '',
+                        fault1: '',
+                        fault2: '',
+                        time: '',
+                        passfail: ''
+                    }))
+                };
+                
+                trial.results[date][column.title] = scoreSheet;
+            });
+            
+            saveTrialsToStorage();
+        }
+
+        // Results functions
+        function loadResults() {
+            const trialId = document.getElementById('resultsTrial').value;
+            if (!trialId) return;
+            
+            const trial = trials.find(t => t.id === trialId);
+            if (!trial || !trial.results) return;
+            
+            const container = document.getElementById('resultsContainer');
+            container.innerHTML = '';
+            
+            Object.keys(trial.results).forEach(date => {
+                const dateSection = document.createElement('div');
+                dateSection.innerHTML = `<h3>Results for ${date}</h3>`;
+                
+                Object.keys(trial.results[date]).forEach(sheetTitle => {
+                    const scoreSheet = trial.results[date][sheetTitle];
+                    const sheetDiv = document.createElement('div');
+                    sheetDiv.className = 'scoresheet';
+                    
+                    sheetDiv.innerHTML = `
+                        <div class="scoresheet-header">
+                            <h4>${sheetTitle}</h4>
+                        </div>
+                        <div class="score-row">
+                            <strong>Team</strong>
+                            <strong>Scent 1</strong>
+                            <strong>Scent 2</strong>
+                            <strong>Scent 3</strong>
+                            <strong>Scent 4</strong>
+                            <strong>Fault</strong>
+                            <strong>Fault</strong>
+                            <strong>Time</strong>
+                            <strong>Pass/Fail</strong>
+                        </div>
+                        ${scoreSheet.participants.map((participant, index) => `
+                            <div class="score-row">
+                                <span>${participant.name}</span>
+                                <input type="text" class="score-input" value="${participant.scent1}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'scent1', this.value)">
+                                <input type="text" class="score-input" value="${participant.scent2}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'scent2', this.value)">
+                                <input type="text" class="score-input" value="${participant.scent3}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'scent3', this.value)">
+                                <input type="text" class="score-input" value="${participant.scent4}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'scent4', this.value)">
+                                <input type="text" class="score-input" value="${participant.fault1}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'fault1', this.value)">
+                                <input type="text" class="score-input" value="${participant.fault2}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'fault2', this.value)">
+                                <input type="text" class="score-input" value="${participant.time}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'time', this.value)">
+                                <select class="score-input" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'passfail', this.value)">
+                                    <option value="">-</option>
+                                    <option value="Pass" ${participant.passfail === 'Pass' ? 'selected' : ''}>Pass</option>
+                                    <option value="Fail" ${participant.passfail === 'Fail' ? 'selected' : ''}>Fail</option>
+                                </select>
+                            </div>
+                        `).join('')}
+                    `;
+                    
+                    dateSection.appendChild(sheetDiv);
+                });
+                
+                container.appendChild(dateSection);
+            });
+            
+            // Add print button
+            const printBtn = document.createElement('button');
+            printBtn.className = 'btn';
+            printBtn.textContent = 'Print Score Sheets';
+            printBtn.onclick = () => printScoreSheets(trialId);
+            container.appendChild(printBtn);
+        }
+
+        function updateScore(trialId, date, sheetTitle, participantIndex, field, value) {
+            const trial = trials.find(t => t.id === trialId);
+            if (trial && trial.results && trial.results[date] && trial.results[date][sheetTitle]) {
+                trial.results[date][sheetTitle].participants[participantIndex][field] = value;
+                saveTrialsToStorage();
+            }
+        }
+
+        function printScoreSheets(trialId) {
+            window.print();
+        }
+
+        // Summary functions
+        function loadSummary() {
+            const trialId = document.getElementById('summaryTrial').value;
+            if (!trialId) return;
+            
+            const trial = trials.find(t => t.id === trialId);
+            if (!trial) return;
+            
+            const container = document.getElementById('summaryContainer');
+            container.innerHTML = '<h3>Trial Summary</h3>';
+            
+            // Generate summary based on trial type and results
+            const summaryData = generateSummaryData(trial);
+            
+            const summaryDiv = document.createElement('div');
+            summaryDiv.innerHTML = `
+                <div class="trial-card">
+                    <h4>Trial Information</h4>
+                    <p><strong>Host:</strong> ${trial.hostName}</p>
+                    <p><strong>Location:</strong> ${trial.location}</p>
+                    <p><strong>Contact:</strong> ${trial.contactName} (${trial.contactEmail})</p>
+                    <p><strong>Type:</strong> ${trial.type}</p>
+                    <p><strong>Total Entries:</strong> ${summaryData.totalEntries}</p>
+                    <p><strong>Total Runs:</strong> ${summaryData.totalRuns}</p>
+                    <p><strong>Qualifying Scores:</strong> ${summaryData.qualifyingScores}</p>
+                </div>
+            `;
+            
+            container.appendChild(summaryDiv);
+        }
+
+        function generateSummaryData(trial) {
+            let totalEntries = 0;
+            let totalRuns = 0;
+            let qualifyingScores = 0;
+            
+            if (trial.results) {
+                Object.values(trial.results).forEach(dateResults => {
+                    Object.values(dateResults).forEach(scoreSheet => {
+                        totalRuns += scoreSheet.participants.length;
+                        scoreSheet.participants.forEach(participant => {
+                            if (participant.passfail === 'Pass') {
+                                qualifyingScores++;
+                            }
+                        });
+                    });
+                });
+            }
+            
+            // Estimate unique entries (in production, this would be tracked properly)
+            totalEntries = Math.ceil(totalRuns / 2);
+            
+            return { totalEntries, totalRuns, qualifyingScores };
+        }
+
+        function generateSummaryReport() {
+            const trialId = document.getElementById('summaryTrial').value;
+            if (!trialId) {
+                alert('Please select a trial');
+                return;
+            }
+            
+            const trial = trials.find(t => t.id === trialId);
+            if (!trial) return;
+            
+            // Generate and download summary report
+            const summaryData = generateSummaryData(trial);
+            const reportContent = `
+C-WAGS Trial Summary Report
+
+Host: ${trial.hostName}
+Location: ${trial.location}
+Contact: ${trial.contactName}
+Email: ${trial.contactEmail}
+Phone: ${trial.contactPhone}
+
+Trial Type: ${trial.type}
+Total Entries: ${summaryData.totalEntries}
+Total Runs: ${summaryData.totalRuns}
+Qualifying Scores: ${summaryData.qualifyingScores}
+
+Generated on: ${new Date().toLocaleString()}
+            `;
+            
+            const blob = new Blob([reportContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function saveTrialsToStorage() {
+            localStorage.setItem('cwags_trials', JSON.stringify(trials));
+        }
+
+        function loadTrialsFromStorage() {
+            const stored = localStorage.getItem('cwags_trials');
+            if (stored) {
+                trials = JSON.parse(stored);
+            }
+        }
+
+        // Event listeners for numeric input changes
+        document.addEventListener('DOMContentLoaded', function() {
+            const numRoundsField = document.getElementById('numRounds');
+            const leagueDaysField = document.getElementById('leagueDays');
+            
+            if (numRoundsField) {
+                numRoundsField.addEventListener('change', updateRoundsConfig);
+            }
+            if (leagueDaysField) {
+                leagueDaysField.addEventListener('change', updateDaysConfig);
+            }
+        });
+
+        // Initialize the application
+        init();
+    </script>
+</body>
+</html>                console.log(`Loaded ${classes.length} classes and ${judges.length} judges from Excel file`);
+                console.log('Classes:', classes);
+                console.log('Judges:', judges.slice(0, 10), '...');
+                
+                // Show success message to user
+                showNotification('Data successfully loaded from Excel file!', 'success');
+                
+            } catch (error) {
+                console.error('Failed to load Excel file:', error);
+                throw error;
+            }
+        }
+
+        function loadFallbackData() {
+            // Fallback data in case Excel file is not available - keep original names
+            classes = [
+                'Patrol 1', 'Detective 2', 'Investigator 3', 'Super Sleuth 4', 'Private Inv', 
+                'Det Diversions', 'Ranger 1', 'Ranger 2', 'Ranger 3', 'Ranger 4', 'Ranger 5', 
+                'Dasher 3', 'Dasher 4', 'Dasher 5', 'Dasher 6', 'Obedience 1', 'Obedience 2', 
+                'Obedience 3', 'Obedience 4', 'Obedience 5'
+            ];
+            
+            judges = [
+                'Linda Alberda', 'Ginger Alpine', 'Paige Alpine-Malone', 'Anita Ambani', 'Denise Ames', 
+                'Youlia Anderson', 'Cindy Angiulo', 'Kalma Arnett', 'Amy Atkinson', 'Natasha Audy', 
+                'Danica Auld', 'Melanie Baker', 'Cheramie Barbazuk', 'Stephanie Barber', 'Jeannine Barbour', 
+                'Doreen Barren', 'Tricia Barstow', 'Lisa Bataska', 'Ryan Baugher', 'Hope Bean'
+            ];
+            
+            console.log('Using fallback data');
+            showNotification('Using fallback data. Please ensure dataforsite.xlsx is uploaded to the repository.', 'error');
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = type === 'success' ? 'success' : 'error';
+            notification.textContent = message;
+            notification.style.position = 'fixed';
+            notification.style.top = '20px';
+            notification.style.right = '20px';
+            notification.style.zIndex = '1000';
+            notification.style.maxWidth = '300px';
+            
+            document.body.appendChild(notification);
+            
+            // Remove notification after 5 seconds
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 5000);
+        }
+
+        function populateDropdowns() {
+            const classSelect = document.getElementById('trialClass');
+            if (classSelect) {
+                classSelect.innerHTML = '<option value="">Select a class</option>';
+                
+                classes.forEach(cls => {
+                    const option = document.createElement('option');
+                    option.value = cls;
+                    option.textContent = cls;
+                    classSelect.appendChild(option);
+                });
+                
+                console.log(`Populated class dropdown with ${classes.length} options`);
+            }
+        }
+
+        // Add a function to reload data from Excel (useful for updates)
+        async function reloadDataFromExcel() {
+            try {
+                await loadDataFromExcel();
+                populateDropdowns();
+                updateAllJudgeDropdowns();
+                showNotification('Data reloaded successfully!', 'success');
+            } catch (error) {
+                showNotification('Failed to reload data from Excel file', 'error');
+            }
+        }
+
+        function updateAllJudgeDropdowns() {
+            // Update all judge dropdowns that might be currently visible
+            const judgeSelects = document.querySelectorAll('select[id*="judge"], select[id*="Judge"]');
+            judgeSelects.forEach(select => {
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">Select judge</option>';
+                
+                judges.forEach(judge => {
+                    const option = document.createElement('option');
+                    option.value = judge;
+                    option.textContent = judge;
+                    if (judge === currentValue) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            });
+            
+            console.log(`Updated ${judgeSelects.length} judge dropdowns`);
+        }
+
+        function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (users[username] && users[username].password === password) {
+                currentUser = { username, ...users[username] };
+                document.getElementById('currentUser').textContent = username;
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('mainContent').classList.remove('hidden');
+                document.getElementById('loginError').classList.add('hidden');
+                loadTrialsList();
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        }
+
+        function logout() {
+            currentUser = null;
+            document.getElementById('loginSection').classList.remove('hidden');
+            document.getElementById('mainContent').classList.add('hidden');
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab
+            const selectedTab = document.getElementById(tabName);
+            if (selectedTab) {
+                selectedTab.classList.add('active');
+            }
+            
+            // Find and activate the corresponding tab button
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                if (tab.textContent.toLowerCase().replace(/\s+/g, '-') === tabName ||
+                    (tabName === 'dashboard' && tab.textContent === 'Dashboard') ||
+                    (tabName === 'create-trial' && tab.textContent === 'Create Trial') ||
+                    (tabName === 'entries' && tab.textContent === 'Entries') ||
+                    (tabName === 'running-order' && tab.textContent === 'Running Order') ||
+                    (tabName === 'results' && tab.textContent === 'Results') ||
+                    (tabName === 'summary' && tab.textContent === 'Summary')) {
+                    tab.classList.add('active');
+                }
+            });
+        }
+
+        function handleTrialTypeChange() {
+            const trialType = document.getElementById('trialType').value;
+            const standaloneConfig = document.getElementById('standaloneConfig');
+            const leagueConfig = document.getElementById('leagueConfig');
+            
+            if (trialType === 'standalone') {
+                standaloneConfig.classList.remove('hidden');
+                leagueConfig.classList.add('hidden');
+                updateRoundsConfig();
+            } else if (trialType === 'league') {
+                standaloneConfig.classList.add('hidden');
+                leagueConfig.classList.remove('hidden');
+                updateDaysConfig();
+            } else {
+                standaloneConfig.classList.add('hidden');
+                leagueConfig.classList.add('hidden');
+            }
+        }
+
+        function updateRoundsConfig() {
+            const numRounds = parseInt(document.getElementById('numRounds').value) || 1;
+            const container = document.getElementById('roundsConfig');
+            container.innerHTML = '';
+            
+            for (let i = 1; i <= numRounds; i++) {
+                const roundDiv = document.createElement('div');
+                roundDiv.className = 'round-config';
+                roundDiv.innerHTML = `
+                    <h4>Round ${i}</h4>
+                    <div class="form-group">
+                        <label>Judge:</label>
+                        <select id="judge${i}">
+                            <option value="">Select judge</option>
+                            ${judges.map(judge => `<option value="${judge}">${judge}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="feo${i}">
+                        <label for="feo${i}">FEO (For Exhibition Only) offered for this round?</label>
+                    </div>
+                `;
+                container.appendChild(roundDiv);
+            }
+            
+            console.log(`Created ${numRounds} round configurations`);
+        }
+
+        function updateDaysConfig() {
+            const numDays = parseInt(document.getElementById('leagueDays').value) || 2;
+            const container = document.getElementById('daysConfig');
+            container.innerHTML = '';
+            
+            for (let day = 1; day <= numDays; day++) {
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'day-config';
+                dayDiv.innerHTML = `
+                    <h3>Day ${day}</h3>
+                    <div class="form-group">
+                        <label>Date:</label>
+                        <input type="date" id="day${day}Date">
+                    </div>
+                    <div class="form-group">
+                        <label>Number of Classes:</label>
+                        <input type="number" id="day${day}Classes" min="1" max="10" value="1" onchange="updateDayClassesConfig(${day})">
+                    </div>
+                    <div id="day${day}ClassesConfig"></div>
+                `;
+                container.appendChild(dayDiv);
+                updateDayClassesConfig(day);
+            }
+        }
+
+        function updateDayClassesConfig(day) {
+            const numClasses = parseInt(document.getElementById(`day${day}Classes`).value) || 1;
+            const container = document.getElementById(`day${day}ClassesConfig`);
+            container.innerHTML = '';
+            
+            for (let cls = 1; cls <= numClasses; cls++) {
+                const classDiv = document.createElement('div');
+                classDiv.className = 'class-config';
+                classDiv.innerHTML = `
+                    <h4>Class ${cls}</h4>
+                    <div class="form-group">
+                        <label>Class Name:</label>
+                        <select id="day${day}class${cls}Name">
+                            <option value="">Select class</option>
+                            ${classes.map(className => `<option value="${className}">${className}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Number of Rounds:</label>
+                        <input type="number" id="day${day}class${cls}Rounds" min="1" max="10" value="1" onchange="updateClassRoundsConfig(${day}, ${cls})">
+                    </div>
+                    <div id="day${day}class${cls}RoundsConfig"></div>
+                `;
+                container.appendChild(classDiv);
+                updateClassRoundsConfig(day, cls);
+            }
+        }
+
+        function updateClassRoundsConfig(day, cls) {
+            const numRounds = parseInt(document.getElementById(`day${day}class${cls}Rounds`).value) || 1;
+            const container = document.getElementById(`day${day}class${cls}RoundsConfig`);
+            container.innerHTML = '';
+            
+            for (let round = 1; round <= numRounds; round++) {
+                const roundDiv = document.createElement('div');
+                roundDiv.className = 'round-config';
+                roundDiv.innerHTML = `
+                    <h5>Round ${round}</h5>
+                    <div class="form-group">
+                        <label>Judge:</label>
+                        <select id="day${day}class${cls}round${round}Judge">
+                            <option value="">Select judge</option>
+                            ${judges.map(judge => `<option value="${judge}">${judge}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="day${day}class${cls}round${round}FEO">
+                        <label for="day${day}class${cls}round${round}FEO">FEO offered for this round?</label>
+                    </div>
+                `;
+                container.appendChild(roundDiv);
+            }
+        }
+
+        function createStandaloneTrial() {
+            // Validate required fields
+            const requiredFields = {
+                'trialDate': 'Trial Date',
+                'trialLocation': 'Location',
+                'hostName': 'Host Name',
+                'contactName': 'Contact Name',
+                'contactEmail': 'Contact Email',
+                'contactPhone': 'Contact Phone',
+                'trialClass': 'Class'
+            };
+            
+            let isValid = true;
+            let missingFields = [];
+            
+            Object.keys(requiredFields).forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (!field || !field.value.trim()) {
+                    isValid = false;
+                    missingFields.push(requiredFields[fieldId]);
+                    if (field) field.style.borderColor = '#e53e3e';
+                } else {
+                    if (field) field.style.borderColor = '#e2e8f0';
+                }
+            });
+            
+            if (!isValid) {
+                alert(`Please fill in the following required fields:\n${missingFields.join('\n')}`);
+                return;
+            }
+            
+            const trialData = {
+                id: Date.now().toString(),
+                type: 'standalone',
+                date: document.getElementById('trialDate').value,
+                location: document.getElementById('trialLocation').value,
+                hostName: document.getElementById('hostName').value,
+                contactName: document.getElementById('contactName').value,
+                contactEmail: document.getElementById('contactEmail').value,
+                contactPhone: document.getElementById('contactPhone').value,
+                premiumWebsite: document.getElementById('premiumWebsite').value,
+                className: document.getElementById('trialClass').value,
+                rounds: [],
+                createdBy: currentUser.username,
+                createdAt: new Date().toISOString(),
+                entries: [],
+                runningOrder: {},
+                results: {},
+                status: 'draft'
+            };
+
+            const numRounds = parseInt(document.getElementById('numRounds').value);
+            for (let i = 1; i <= numRounds; i++) {
+                const judgeField = document.getElementById(`judge${i}`);
+                const feoField = document.getElementById(`feo${i}`);
+                
+                if (!judgeField || !judgeField.value) {
+                    alert(`Please select a judge for Round ${i}`);
+                    return;
+                }
+                
+                const judge = judgeField.value;
+                const feo = feoField ? feoField.checked : false;
+                trialData.rounds.push({ round: i, judge, feo });
+            }
+
+            trials.push(trialData);
+            saveTrialsToStorage();
+            
+            // Generate entry form link
+            const entryLink = generateEntryForm(trialData);
+            
+            // Show success message with clickable link
+            const successMessage = `Trial created successfully!\n\nEntry Form URL:\n${entryLink}\n\nShare this link with participants to register for the trial.\nYou can also access this link from the Entries tab.`;
+            
+            alert(successMessage);
+            
+            // Also copy to clipboard if supported
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(entryLink).then(() => {
+                    showNotification('Entry form URL copied to clipboard!', 'success');
+                });
+            }
+            
+            // Reset form and go back to dashboard
+            resetTrialForm();
+            showTab('dashboard');
+            loadTrialsList();
+        }
+
+        function createLeagueTrial() {
+            // Validate required fields
+            const requiredFields = {
+                'leagueLocation': 'Location',
+                'leagueHostName': 'Host Name',
+                'leagueContactName': 'Contact Name',
+                'leagueContactEmail': 'Contact Email',
+                'leagueContactPhone': 'Contact Phone'
+            };
+            
+            let isValid = true;
+            let missingFields = [];
+            
+            Object.keys(requiredFields).forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (!field || !field.value.trim()) {
+                    isValid = false;
+                    missingFields.push(requiredFields[fieldId]);
+                    if (field) field.style.borderColor = '#e53e3e';
+                } else {
+                    if (field) field.style.borderColor = '#e2e8f0';
+                }
+            });
+            
+            if (!isValid) {
+                alert(`Please fill in the following required fields:\n${missingFields.join('\n')}`);
+                return;
+            }
+            
+            const numDays = parseInt(document.getElementById('leagueDays').value);
+            const trialData = {
+                id: Date.now().toString(),
+                type: 'league',
+                location: document.getElementById('leagueLocation').value,
+                hostName: document.getElementById('leagueHostName').value,
+                contactName: document.getElementById('leagueContactName').value,
+                contactEmail: document.getElementById('leagueContactEmail').value,
+                contactPhone: document.getElementById('leagueContactPhone').value,
+                premiumWebsite: document.getElementById('leaguePremiumWebsite').value,
+                days: [],
+                createdBy: currentUser.username,
+                createdAt: new Date().toISOString(),
+                entries: [],
+                runningOrder: {},
+                results: {},
+                status: 'draft'
+            };
+
+            for (let day = 1; day <= numDays; day++) {
+                const dateField = document.getElementById(`day${day}Date`);
+                if (!dateField || !dateField.value) {
+                    alert(`Please select a date for Day ${day}`);
+                    return;
+                }
+                
+                const dayData = {
+                    day: day,
+                    date: dateField.value,
+                    classes: []
+                };
+
+                const numClasses = parseInt(document.getElementById(`day${day}Classes`).value);
+                for (let cls = 1; cls <= numClasses; cls++) {
+                    const classNameField = document.getElementById(`day${day}class${cls}Name`);
+                    if (!classNameField || !classNameField.value) {
+                        alert(`Please select a class for Day ${day}, Class ${cls}`);
+                        return;
+                    }
+                    
+                    const classData = {
+                        className: classNameField.value,
+                        rounds: []
+                    };
+
+                    const numRounds = parseInt(document.getElementById(`day${day}class${cls}Rounds`).value);
+                    for (let round = 1; round <= numRounds; round++) {
+                        const judgeField = document.getElementById(`day${day}class${cls}round${round}Judge`);
+                        const feoField = document.getElementById(`day${day}class${cls}round${round}FEO`);
+                        
+                        if (!judgeField || !judgeField.value) {
+                            alert(`Please select a judge for Day ${day}, Class ${cls}, Round ${round}`);
+                            return;
+                        }
+                        
+                        const judge = judgeField.value;
+                        const feo = feoField ? feoField.checked : false;
+                        classData.rounds.push({ round, judge, feo });
+                    }
+                    dayData.classes.push(classData);
+                }
+                trialData.days.push(dayData);
+            }
+
+            trials.push(trialData);
+            saveTrialsToStorage();
+            
+            // Generate entry form link
+            const entryLink = generateEntryForm(trialData);
+            
+            // Show success message with clickable link
+            const successMessage = `League trial created successfully!\n\nEntry Form URL:\n${entryLink}\n\nShare this link with participants to register for the trial.\nYou can also access this link from the Entries tab.`;
+            
+            alert(successMessage);
+            
+            // Also copy to clipboard if supported
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(entryLink).then(() => {
+                    showNotification('Entry form URL copied to clipboard!', 'success');
+                });
+            }
+            
+            // Reset form and go back to dashboard
+            resetTrialForm();
+            showTab('dashboard');
+            loadTrialsList();
+        }
+
+        function generateEntryForm(trialData) {
+            // Create entry form data
+            const formId = `entry-form-${trialData.id}`;
+            
+            // Store the entry form data
+            const entryForm = {
+                id: formId,
+                trialId: trialData.id,
+                trial: trialData,
+                entries: [],
+                status: 'open',
+                editDeadline: calculateEditDeadline(trialData)
+            };
+            
+            // In production, this would be saved to a database
+            localStorage.setItem(`entryForm_${formId}`, JSON.stringify(entryForm));
+            
+            // Generate the public entry form URL
+            const baseUrl = window.location.origin + window.location.pathname;
+            return `${baseUrl}?form=${formId}`;
+        }
+
+        function calculateEditDeadline(trialData) {
+            let earliestDate;
+            if (trialData.type === 'standalone') {
+                earliestDate = new Date(trialData.date);
+            } else {
+                earliestDate = new Date(Math.min(...trialData.days.map(day => new Date(day.date))));
+            }
+            
+            // Set deadline to 24 hours before the first trial date
+            earliestDate.setHours(earliestDate.getHours() - 24);
+            return earliestDate.toISOString();
+        }
+
+        function resetTrialForm() {
+            document.getElementById('trialType').value = '';
+            document.getElementById('standaloneConfig').classList.add('hidden');
+            document.getElementById('leagueConfig').classList.add('hidden');
+            
+            // Reset all form fields
+            document.querySelectorAll('#create-trial input, #create-trial select').forEach(field => {
+                if (field.type === 'checkbox') {
+                    field.checked = false;
+                } else {
+                    field.value = '';
+                }
+            });
+        }
+
+        function loadTrialsList() {
+            const container = document.getElementById('trialsList');
+            container.innerHTML = '';
+            
+            // Update data counts in dashboard
+            document.getElementById('classCount').textContent = classes.length;
+            document.getElementById('judgeCount').textContent = judges.length;
+            
+            const userTrials = currentUser.role === 'admin' ? trials : trials.filter(trial => trial.createdBy === currentUser.username);
+            
+            if (userTrials.length === 0) {
+                container.innerHTML = '<p>No trials found. Create your first trial!</p>';
+                return;
+            }
+            
+            userTrials.forEach(trial => {
+                const trialCard = document.createElement('div');
+                trialCard.className = 'trial-card';
+                
+                const trialDates = trial.type === 'standalone' ? 
+                    trial.date : 
+                    trial.days.map(day => day.date).join(', ');
+                
+                trialCard.innerHTML = `
+                    <h3>${trial.type === 'standalone' ? trial.className : 'League Trial'}</h3>
+                    <p><strong>Host:</strong> ${trial.hostName}</p>
+                    <p><strong>Location:</strong> ${trial.location}</p>
+                    <p><strong>Date(s):</strong> ${trialDates}</p>
+                    <p><strong>Status:</strong> ${trial.status}</p>
+                    <p><strong>Entries:</strong> ${trial.entries.length}</p>
+                    <div>
+                        <button class="btn btn-secondary" onclick="viewTrial('${trial.id}')">View Details</button>
+                        <button class="btn" onclick="manageTrial('${trial.id}')">Manage</button>
+                    </div>
+                `;
+                container.appendChild(trialCard);
+            });
+            
+            // Update trial selects in other tabs
+            updateTrialSelects();
+        }
+
+        function updateTrialSelects() {
+            const selects = ['runningOrderTrial', 'resultsTrial', 'summaryTrial', 'entriesTrial'];
+            const userTrials = currentUser && currentUser.role === 'admin' ? trials : trials.filter(trial => trial.createdBy === currentUser?.username);
+            
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    select.innerHTML = '<option value="">Select a trial</option>';
+                    
+                    userTrials.forEach(trial => {
+                        const option = document.createElement('option');
+                        option.value = trial.id;
+                        option.textContent = `${trial.hostName} - ${trial.type === 'standalone' ? trial.className : 'League'} - ${trial.type === 'standalone' ? trial.date : trial.days[0].date}`;
+                        select.appendChild(option);
+                    });
+                }
+            });
+        }
+
+        function viewTrial(trialId) {
+            const trial = trials.find(t => t.id === trialId);
+            if (!trial) return;
+            
+            alert(`Trial Details:\n\nType: ${trial.type}\nHost: ${trial.hostName}\nLocation: ${trial.location}\nContact: ${trial.contactName}\nEmail: ${trial.contactEmail}\nPhone: ${trial.contactPhone}\nEntries: ${trial.entries.length}`);
+        }
+
+        function manageTrial(trialId) {
+            // Switch to running order tab for trial management
+            showTab('running-order');
+            document.getElementById('runningOrderTrial').value = trialId;
+            loadRunningOrder();
+        }
+
+        // Entry form functions
+        function showPublicEntryForm(formId) {
+            // Load the trial data for this entry form
+            const trial = trials.find(t => `entry-form-${t.id}` === formId);
+            
+            if (!trial) {
+                document.body.innerHTML = `
+                    <div style="text-align: center; padding: 50px;">
+                        <h2>Entry Form Not Found</h2>
+                        <p>The entry form you're looking for doesn't exist or has been removed.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            currentTrialForEntry = trial;
+            
+            // Hide other sections and show entry form
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('mainContent').classList.add('hidden');
+            document.getElementById('entryFormSection').classList.remove('hidden');
+            
+            // Populate trial information
+            populateEntryForm(trial);
+        }
+
+        function populateEntryForm(trial) {
+            const trialInfo = document.getElementById('entryTrialInfo');
+            const classSelection = document.getElementById('entryClassSelection');
+            const mailInAddress = document.getElementById('mailInAddress');
+            const entryDeadline = document.getElementById('entryDeadline');
+            
+            // Set trial information
+            if (trial.type === 'standalone') {
+                trialInfo.innerHTML = `
+                    <strong>${trial.className}</strong><br>
+                    ${trial.hostName}<br>
+                    ${trial.location}<br>
+                    ${new Date(trial.date).toLocaleDateString()}
+                `;
+            } else {
+                trialInfo.innerHTML = `
+                    <strong>League Trial</strong><br>
+                    ${trial.hostName}<br>
+                    ${trial.location}<br>
+                    ${trial.days.map(day => new Date(day.date).toLocaleDateString()).join(', ')}
+                `;
+            }
+            
+            // Set mail-in address
+            mailInAddress.innerHTML = `
+                ${trial.contactName}<br>
+                ${trial.hostName}<br>
+                Email: ${trial.contactEmail}<br>
+                Phone: ${trial.contactPhone}
+            `;
+            
+            // Set entry deadline
+            const deadline = calculateEditDeadline(trial);
+            entryDeadline.textContent = new Date(deadline).toLocaleDateString();
+            
+            // Populate class selection
+            classSelection.innerHTML = '<h4>Class Selection *</h4>';
+            
+            if (trial.type === 'standalone') {
+                const classDiv = document.createElement('div');
+                classDiv.className = 'checkbox-group';
+                classDiv.innerHTML = `
+                    <input type="checkbox" id="entryClass_${trial.className}" value="${trial.className}">
+                    <label for="entryClass_${trial.className}">${trial.className} - ${trial.rounds.length} round(s)</label>
+                `;
+                classSelection.appendChild(classDiv);
+            } else {
+                trial.days.forEach((day, dayIndex) => {
+                    const dayDiv = document.createElement('div');
+                    dayDiv.style.marginBottom = '15px';
+                    dayDiv.innerHTML = `<h5>Day ${day.day} - ${new Date(day.date).toLocaleDateString()}</h5>`;
+                    
+                    day.classes.forEach((cls, clsIndex) => {
+                        const classDiv = document.createElement('div');
+                        classDiv.className = 'checkbox-group';
+                        classDiv.innerHTML = `
+                            <input type="checkbox" id="entryClass_${dayIndex}_${clsIndex}" value="${cls.className}" data-day="${dayIndex}">
+                            <label for="entryClass_${dayIndex}_${clsIndex}">${cls.className} - ${cls.rounds.length} round(s)</label>
+                        `;
+                        dayDiv.appendChild(classDiv);
+                    });
+                    
+                    classSelection.appendChild(dayDiv);
+                });
+            }
+        }
+
+        function submitEntry() {
+            // Validate required fields
+            const requiredFields = ['entryOwnerName', 'entryAddress', 'entryPhone', 'entryEmail', 'entryDogName'];
+            let isValid = true;
+            
+            requiredFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (!field.value.trim()) {
+                    field.style.borderColor = '#e53e3e';
+                    isValid = false;
+                } else {
+                    field.style.borderColor = '#e2e8f0';
+                }
+            });
+            
+            // Check if waiver is accepted
+            if (!document.getElementById('entryWaiver').checked) {
+                alert('Please accept the waiver of liability to continue.');
+                return;
+            }
+            
+            // Check if at least one class is selected
+            const selectedClasses = document.querySelectorAll('#entryClassSelection input[type="checkbox"]:checked');
+            if (selectedClasses.length === 0) {
+                alert('Please select at least one class to enter.');
+                return;
+            }
+            
+            if (!isValid) {
+                alert('Please fill in all required fields marked with *');
+                return;
+            }
+            
+            // Create entry object
+            const entry = {
+                id: Date.now().toString(),
+                trialId: currentTrialForEntry.id,
+                ownerName: document.getElementById('entryOwnerName').value,
+                address: document.getElementById('entryAddress').value,
+                phone: document.getElementById('entryPhone').value,
+                email: document.getElementById('entryEmail').value,
+                dogName: document.getElementById('entryDogName').value,
+                dogFullName: document.getElementById('entryDogFullName').value,
+                breed: <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>C-WAGS Trial Management System</title>
+    <!-- Include SheetJS library for reading Excel files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -335,7 +1849,12 @@
     </style>
 </head>
 <body>
-            <div class="container">
+    <div class="container">
+        <div class="header">
+            <h1>🐕 C-WAGS Trial Management System</h1>
+            <p>Comprehensive Dog Trial Organization & Scoring Platform</p>
+        </div>
+
         <!-- Entry Form (Public Access) -->
         <div id="entryFormSection" class="login-section hidden">
             <div style="text-align: center; margin-bottom: 20px;">
@@ -344,6 +1863,12 @@
             </div>
             
             <div id="entryFormContent">
+                <div class="form-group">
+                    <label for="entryRegistrationNumber">Registration Number (optional):</label>
+                    <input type="text" id="entryRegistrationNumber" placeholder="e.g., 07-0001-01" onchange="autoFillFromRegistration()">
+                    <small style="color: #666;">If you have a registration number, enter it to auto-fill dog and handler information</small>
+                </div>
+                
                 <div class="form-group">
                     <label for="entryOwnerName">Owner/Handler Name *:</label>
                     <input type="text" id="entryOwnerName" required>
@@ -424,10 +1949,6 @@
                 <p><strong>Entry ID:</strong> <span id="confirmationId"></span></p>
             </div>
         </div>
-        <div class="header">
-            <h1>🐕 C-WAGS Trial Management System</h1>
-            <p>Comprehensive Dog Trial Organization & Scoring Platform</p>
-        </div>
 
         <!-- Login Section -->
         <div id="loginSection" class="login-section">
@@ -503,10 +2024,16 @@
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                         <div>
-                            <div class="form-group">
-                                <label for="manualOwnerName">Owner/Handler Name *:</label>
-                                <input type="text" id="manualOwnerName" required>
-                            </div>
+                    <div class="form-group">
+                        <label for="manualRegistrationNumber">Registration Number (optional):</label>
+                        <input type="text" id="manualRegistrationNumber" placeholder="e.g., 07-0001-01" onchange="autoFillManualFromRegistration()">
+                        <small style="color: #666;">If available, enter registration number to auto-fill information</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="manualOwnerName">Owner/Handler Name *:</label>
+                        <input type="text" id="manualOwnerName" required>
+                    </div>
                             
                             <div class="form-group">
                                 <label for="manualAddress">Address *:</label>
@@ -582,6 +2109,8 @@
                     <!-- Entries will be populated here -->
                 </div>
             </div>
+
+            <!-- Create Trial Tab -->
             <div id="create-trial" class="tab-content">
                 <h2>Create New Trial</h2>
                 
@@ -640,7 +2169,7 @@
                     
                     <div class="form-group">
                         <label for="numRounds">Number of Rounds:</label>
-                        <input type="number" id="numRounds" min="1" max="10" value="1">
+                        <input type="number" id="numRounds" min="1" max="10" value="1" onchange="updateRoundsConfig()">
                     </div>
                     
                     <div id="roundsConfig"></div>
@@ -652,7 +2181,7 @@
                 <div id="leagueConfig" class="hidden">
                     <div class="form-group">
                         <label for="leagueDays">Number of Days:</label>
-                        <input type="number" id="leagueDays" min="2" max="14" value="2">
+                        <input type="number" id="leagueDays" min="2" max="14" value="2" onchange="updateDaysConfig()">
                     </div>
                     
                     <div class="form-group">
@@ -737,9 +2266,6 @@
         </div>
     </div>
 
-    <!-- Include SheetJS library for reading Excel files -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
     <script>
         // Data will be loaded from Excel file
         let classes = [];
@@ -801,875 +2327,14 @@
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                 const jsonData = XLSX.utils.sheet_to_json(firstSheet);
                 
-                // Extract unique classes and judges
+                // Extract unique classes and judges - using exact names from spreadsheet
                 const uniqueClasses = [...new Set(jsonData.map(row => row['Class Name']).filter(Boolean))];
                 const uniqueJudges = [...new Set(jsonData.map(row => row['Judge Name']).filter(Boolean))];
                 
-                classes = uniqueClasses.sort();
-                judges = uniqueJudges.sort();
+                // Don't sort - keep original order from spreadsheet
+                classes = uniqueClasses;
+                judges = uniqueJudges;
                 trialData = jsonData;
                 
                 console.log(`Loaded ${classes.length} classes and ${judges.length} judges from Excel file`);
-                
-                // Show success message to user
-                showNotification('Data successfully loaded from Excel file!', 'success');
-                
-            } catch (error) {
-                console.error('Failed to load Excel file:', error);
-                throw error;
-            }
-        }
-
-        function loadFallbackData() {
-            // Fallback data in case Excel file is not available
-            classes = ['Patrol 1', 'Detective 2', 'Investigator 3', 'Super Sleuth 4', 'Private Inv', 'Det Diversions', 'Ranger 1', 'Ranger 2', 'Ranger 3', 'Ranger 4', 'Ranger 5', 'Dasher 3', 'Dasher 4', 'Dasher 5', 'Dasher 6', 'Obedience 1', 'Obedience 2', 'Obedience 3', 'Obedience 4', 'Obedience 5'];
-            
-            judges = ['Linda Alberda', 'Ginger Alpine', 'Paige Alpine-Malone', 'Anita Ambani', 'Denise Ames', 'Youlia Anderson', 'Cindy Angiulo', 'Kalma Arnett', 'Amy Atkinson', 'Natasha Audy', 'Danica Auld', 'Melanie Baker', 'Cheramie Barbazuk', 'Stephanie Barber', 'Jeannine Barbour', 'Doreen Barren', 'Tricia Barstow', 'Lisa Bataska', 'Ryan Baugher', 'Hope Bean'];
-            
-            showNotification('Using fallback data. Please ensure dataforsite.xlsx is uploaded to the repository.', 'error');
-        }
-
-        function showNotification(message, type = 'success') {
-            const notification = document.createElement('div');
-            notification.className = type === 'success' ? 'success' : 'error';
-            notification.textContent = message;
-            notification.style.position = 'fixed';
-            notification.style.top = '20px';
-            notification.style.right = '20px';
-            notification.style.zIndex = '1000';
-            notification.style.maxWidth = '300px';
-            
-            document.body.appendChild(notification);
-            
-            // Remove notification after 5 seconds
-            setTimeout(() => {
-                document.body.removeChild(notification);
-            }, 5000);
-        }
-
-        function populateDropdowns() {
-            const classSelect = document.getElementById('trialClass');
-            classSelect.innerHTML = '<option value="">Select a class</option>';
-            
-            classes.forEach(cls => {
-                const option = document.createElement('option');
-                option.value = cls;
-                option.textContent = cls;
-                classSelect.appendChild(option);
-            });
-        }
-
-        // Add a function to reload data from Excel (useful for updates)
-        async function reloadDataFromExcel() {
-            try {
-                await loadDataFromExcel();
-                populateDropdowns();
-                updateAllJudgeDropdowns();
-                showNotification('Data reloaded successfully!', 'success');
-            } catch (error) {
-                showNotification('Failed to reload data from Excel file', 'error');
-            }
-        }
-
-        function updateAllJudgeDropdowns() {
-            // Update all judge dropdowns that might be currently visible
-            const judgeSelects = document.querySelectorAll('select[id*="judge"], select[id*="Judge"]');
-            judgeSelects.forEach(select => {
-                const currentValue = select.value;
-                select.innerHTML = '<option value="">Select judge</option>';
-                
-                judges.forEach(judge => {
-                    const option = document.createElement('option');
-                    option.value = judge;
-                    option.textContent = judge;
-                    if (judge === currentValue) {
-                        option.selected = true;
-                    }
-                    select.appendChild(option);
-                });
-            });
-        }
-
-        function login() {
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            
-            if (users[username] && users[username].password === password) {
-                currentUser = { username, ...users[username] };
-                document.getElementById('currentUser').textContent = username;
-                document.getElementById('loginSection').classList.add('hidden');
-                document.getElementById('mainContent').classList.remove('hidden');
-                document.getElementById('loginError').classList.add('hidden');
-                loadTrialsList();
-            } else {
-                document.getElementById('loginError').classList.remove('hidden');
-            }
-        }
-
-        function logout() {
-            currentUser = null;
-            document.getElementById('loginSection').classList.remove('hidden');
-            document.getElementById('mainContent').classList.add('hidden');
-            document.getElementById('username').value = '';
-            document.getElementById('password').value = '';
-        }
-
-        function showTab(tabName) {
-            // Hide all tab contents
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Remove active class from all tabs
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Show selected tab
-            document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
-        }
-
-        function handleTrialTypeChange() {
-            const trialType = document.getElementById('trialType').value;
-            const standaloneConfig = document.getElementById('standaloneConfig');
-            const leagueConfig = document.getElementById('leagueConfig');
-            
-            if (trialType === 'standalone') {
-                standaloneConfig.classList.remove('hidden');
-                leagueConfig.classList.add('hidden');
-                updateRoundsConfig();
-            } else if (trialType === 'league') {
-                standaloneConfig.classList.add('hidden');
-                leagueConfig.classList.remove('hidden');
-                updateDaysConfig();
-            } else {
-                standaloneConfig.classList.add('hidden');
-                leagueConfig.classList.add('hidden');
-            }
-        }
-
-        function updateRoundsConfig() {
-            const numRounds = parseInt(document.getElementById('numRounds').value) || 1;
-            const container = document.getElementById('roundsConfig');
-            container.innerHTML = '';
-            
-            for (let i = 1; i <= numRounds; i++) {
-                const roundDiv = document.createElement('div');
-                roundDiv.className = 'round-config';
-                roundDiv.innerHTML = `
-                    <h4>Round ${i}</h4>
-                    <div class="form-group">
-                        <label>Judge:</label>
-                        <select id="judge${i}">
-                            <option value="">Select judge</option>
-                            ${judges.map(judge => `<option value="${judge}">${judge}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="feo${i}">
-                        <label for="feo${i}">FEO (For Exhibition Only) offered for this round?</label>
-                    </div>
-                `;
-                container.appendChild(roundDiv);
-            }
-        }
-
-        function updateDaysConfig() {
-            const numDays = parseInt(document.getElementById('leagueDays').value) || 2;
-            const container = document.getElementById('daysConfig');
-            container.innerHTML = '';
-            
-            for (let day = 1; day <= numDays; day++) {
-                const dayDiv = document.createElement('div');
-                dayDiv.className = 'day-config';
-                dayDiv.innerHTML = `
-                    <h3>Day ${day}</h3>
-                    <div class="form-group">
-                        <label>Date:</label>
-                        <input type="date" id="day${day}Date">
-                    </div>
-                    <div class="form-group">
-                        <label>Number of Classes:</label>
-                        <input type="number" id="day${day}Classes" min="1" max="10" value="1" onchange="updateDayClassesConfig(${day})">
-                    </div>
-                    <div id="day${day}ClassesConfig"></div>
-                `;
-                container.appendChild(dayDiv);
-                updateDayClassesConfig(day);
-            }
-        }
-
-        function updateDayClassesConfig(day) {
-            const numClasses = parseInt(document.getElementById(`day${day}Classes`).value) || 1;
-            const container = document.getElementById(`day${day}ClassesConfig`);
-            container.innerHTML = '';
-            
-            for (let cls = 1; cls <= numClasses; cls++) {
-                const classDiv = document.createElement('div');
-                classDiv.className = 'class-config';
-                classDiv.innerHTML = `
-                    <h4>Class ${cls}</h4>
-                    <div class="form-group">
-                        <label>Class Name:</label>
-                        <select id="day${day}class${cls}Name">
-                            <option value="">Select class</option>
-                            ${classes.map(className => `<option value="${className}">${className}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Number of Rounds:</label>
-                        <input type="number" id="day${day}class${cls}Rounds" min="1" max="10" value="1" onchange="updateClassRoundsConfig(${day}, ${cls})">
-                    </div>
-                    <div id="day${day}class${cls}RoundsConfig"></div>
-                `;
-                container.appendChild(classDiv);
-                updateClassRoundsConfig(day, cls);
-            }
-        }
-
-        function updateClassRoundsConfig(day, cls) {
-            const numRounds = parseInt(document.getElementById(`day${day}class${cls}Rounds`).value) || 1;
-            const container = document.getElementById(`day${day}class${cls}RoundsConfig`);
-            container.innerHTML = '';
-            
-            for (let round = 1; round <= numRounds; round++) {
-                const roundDiv = document.createElement('div');
-                roundDiv.className = 'round-config';
-                roundDiv.innerHTML = `
-                    <h5>Round ${round}</h5>
-                    <div class="form-group">
-                        <label>Judge:</label>
-                        <select id="day${day}class${cls}round${round}Judge">
-                            <option value="">Select judge</option>
-                            ${judges.map(judge => `<option value="${judge}">${judge}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="day${day}class${cls}round${round}FEO">
-                        <label for="day${day}class${cls}round${round}FEO">FEO offered for this round?</label>
-                    </div>
-                `;
-                container.appendChild(roundDiv);
-            }
-        }
-
-        function createStandaloneTrial() {
-            const trialData = {
-                id: Date.now().toString(),
-                type: 'standalone',
-                date: document.getElementById('trialDate').value,
-                location: document.getElementById('trialLocation').value,
-                hostName: document.getElementById('hostName').value,
-                contactName: document.getElementById('contactName').value,
-                contactEmail: document.getElementById('contactEmail').value,
-                contactPhone: document.getElementById('contactPhone').value,
-                premiumWebsite: document.getElementById('premiumWebsite').value,
-                className: document.getElementById('trialClass').value,
-                rounds: [],
-                createdBy: currentUser.username,
-                createdAt: new Date().toISOString(),
-                entries: [],
-                runningOrder: {},
-                results: {},
-                status: 'draft'
-            };
-
-            const numRounds = parseInt(document.getElementById('numRounds').value);
-            for (let i = 1; i <= numRounds; i++) {
-                const judge = document.getElementById(`judge${i}`).value;
-                const feo = document.getElementById(`feo${i}`).checked;
-                trialData.rounds.push({ round: i, judge, feo });
-            }
-
-            trials.push(trialData);
-            saveTrialsToStorage();
-            
-            // Generate entry form link
-            const entryLink = generateEntryForm(trialData);
-            
-            // Show success message with clickable link
-            const successMessage = `
-                Trial created successfully!
-                
-                Entry Form URL:
-                ${entryLink}
-                
-                Share this link with participants to register for the trial.
-                You can also access this link from the Entries tab.
-            `;
-            
-            alert(successMessage);
-            
-            // Also copy to clipboard if supported
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(entryLink).then(() => {
-                    showNotification('Entry form URL copied to clipboard!', 'success');
-                });
-            }
-            
-            loadTrialsList();
-            resetTrialForm();
-        }
-
-        function createLeagueTrial() {
-            const numDays = parseInt(document.getElementById('leagueDays').value);
-            const trialData = {
-                id: Date.now().toString(),
-                type: 'league',
-                location: document.getElementById('leagueLocation').value,
-                hostName: document.getElementById('leagueHostName').value,
-                contactName: document.getElementById('leagueContactName').value,
-                contactEmail: document.getElementById('leagueContactEmail').value,
-                contactPhone: document.getElementById('leagueContactPhone').value,
-                premiumWebsite: document.getElementById('leaguePremiumWebsite').value,
-                days: [],
-                createdBy: currentUser.username,
-                createdAt: new Date().toISOString(),
-                entries: [],
-                runningOrder: {},
-                results: {},
-                status: 'draft'
-            };
-
-            for (let day = 1; day <= numDays; day++) {
-                const dayData = {
-                    day: day,
-                    date: document.getElementById(`day${day}Date`).value,
-                    classes: []
-                };
-
-                const numClasses = parseInt(document.getElementById(`day${day}Classes`).value);
-                for (let cls = 1; cls <= numClasses; cls++) {
-                    const classData = {
-                        className: document.getElementById(`day${day}class${cls}Name`).value,
-                        rounds: []
-                    };
-
-                    const numRounds = parseInt(document.getElementById(`day${day}class${cls}Rounds`).value);
-                    for (let round = 1; round <= numRounds; round++) {
-                        const judge = document.getElementById(`day${day}class${cls}round${round}Judge`).value;
-                        const feo = document.getElementById(`day${day}class${cls}round${round}FEO`).checked;
-                        classData.rounds.push({ round, judge, feo });
-                    }
-                    dayData.classes.push(classData);
-                }
-                trialData.days.push(dayData);
-            }
-
-            trials.push(trialData);
-            saveTrialsToStorage();
-            
-            // Generate entry form link
-            const entryLink = generateEntryForm(trialData);
-            
-            // Show success message with clickable link
-            const successMessage = `
-                League trial created successfully!
-                
-                Entry Form URL:
-                ${entryLink}
-                
-                Share this link with participants to register for the trial.
-                You can also access this link from the Entries tab.
-            `;
-            
-            alert(successMessage);
-            
-            // Also copy to clipboard if supported
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(entryLink).then(() => {
-                    showNotification('Entry form URL copied to clipboard!', 'success');
-                });
-            }
-            
-            loadTrialsList();
-            resetTrialForm();
-        }
-
-        function generateEntryForm(trialData) {
-            // Create entry form data
-            const formId = `entry-form-${trialData.id}`;
-            
-            // Store the entry form data
-            const entryForm = {
-                id: formId,
-                trialId: trialData.id,
-                trial: trialData,
-                entries: [],
-                status: 'open',
-                editDeadline: calculateEditDeadline(trialData)
-            };
-            
-            // In production, this would be saved to a database
-            localStorage.setItem(`entryForm_${formId}`, JSON.stringify(entryForm));
-            
-            // Generate the public entry form URL
-            const baseUrl = window.location.origin + window.location.pathname;
-            return `${baseUrl}?form=${formId}`;
-        }
-
-        function calculateEditDeadline(trialData) {
-            let earliestDate;
-            if (trialData.type === 'standalone') {
-                earliestDate = new Date(trialData.date);
-            } else {
-                earliestDate = new Date(Math.min(...trialData.days.map(day => new Date(day.date))));
-            }
-            
-            // Set deadline to 24 hours before the first trial date
-            earliestDate.setHours(earliestDate.getHours() - 24);
-            return earliestDate.toISOString();
-        }
-
-        function resetTrialForm() {
-            document.getElementById('trialType').value = '';
-            document.getElementById('standaloneConfig').classList.add('hidden');
-            document.getElementById('leagueConfig').classList.add('hidden');
-            
-            // Reset all form fields
-            document.querySelectorAll('#create-trial input, #create-trial select').forEach(field => {
-                if (field.type === 'checkbox') {
-                    field.checked = false;
-                } else {
-                    field.value = '';
-                }
-            });
-        }
-
-        function loadTrialsList() {
-            const container = document.getElementById('trialsList');
-            container.innerHTML = '';
-            
-            // Update data counts in dashboard
-            document.getElementById('classCount').textContent = classes.length;
-            document.getElementById('judgeCount').textContent = judges.length;
-            
-            const userTrials = currentUser.role === 'admin' ? trials : trials.filter(trial => trial.createdBy === currentUser.username);
-            
-            if (userTrials.length === 0) {
-                container.innerHTML = '<p>No trials found. Create your first trial!</p>';
-                return;
-            }
-            
-            userTrials.forEach(trial => {
-                const trialCard = document.createElement('div');
-                trialCard.className = 'trial-card';
-                
-                const trialDates = trial.type === 'standalone' ? 
-                    trial.date : 
-                    trial.days.map(day => day.date).join(', ');
-                
-                trialCard.innerHTML = `
-                    <h3>${trial.type === 'standalone' ? trial.className : 'League Trial'}</h3>
-                    <p><strong>Host:</strong> ${trial.hostName}</p>
-                    <p><strong>Location:</strong> ${trial.location}</p>
-                    <p><strong>Date(s):</strong> ${trialDates}</p>
-                    <p><strong>Status:</strong> ${trial.status}</p>
-                    <p><strong>Entries:</strong> ${trial.entries.length}</p>
-                    <div>
-                        <button class="btn btn-secondary" onclick="viewTrial('${trial.id}')">View Details</button>
-                        <button class="btn" onclick="manageTrial('${trial.id}')">Manage</button>
-                    </div>
-                `;
-                container.appendChild(trialCard);
-            });
-            
-            // Update trial selects in other tabs
-            updateTrialSelects();
-        }
-
-        function updateTrialSelects() {
-            const selects = ['runningOrderTrial', 'resultsTrial', 'summaryTrial'];
-            const userTrials = currentUser.role === 'admin' ? trials : trials.filter(trial => trial.createdBy === currentUser.username);
-            
-            selects.forEach(selectId => {
-                const select = document.getElementById(selectId);
-                select.innerHTML = '<option value="">Select a trial</option>';
-                
-                userTrials.forEach(trial => {
-                    const option = document.createElement('option');
-                    option.value = trial.id;
-                    option.textContent = `${trial.hostName} - ${trial.type === 'standalone' ? trial.className : 'League'} - ${trial.type === 'standalone' ? trial.date : trial.days[0].date}`;
-                    select.appendChild(option);
-                });
-            });
-        }
-
-        function viewTrial(trialId) {
-            const trial = trials.find(t => t.id === trialId);
-            if (!trial) return;
-            
-            alert(`Trial Details:\n\nType: ${trial.type}\nHost: ${trial.hostName}\nLocation: ${trial.location}\nContact: ${trial.contactName}\nEmail: ${trial.contactEmail}\nPhone: ${trial.contactPhone}\nEntries: ${trial.entries.length}`);
-        }
-
-        function manageTrial(trialId) {
-            // Switch to running order tab for trial management
-            showTab('running-order');
-            document.getElementById('runningOrderTrial').value = trialId;
-            loadRunningOrder();
-        }
-
-        function loadRunningOrder() {
-            const trialId = document.getElementById('runningOrderTrial').value;
-            const selectedDate = document.getElementById('runningOrderDate').value;
-            
-            if (!trialId) return;
-            
-            const trial = trials.find(t => t.id === trialId);
-            if (!trial) return;
-            
-            // Update date options
-            const dateSelect = document.getElementById('runningOrderDate');
-            dateSelect.innerHTML = '<option value="">Select a date</option>';
-            
-            if (trial.type === 'standalone') {
-                const option = document.createElement('option');
-                option.value = trial.date;
-                option.textContent = trial.date;
-                dateSelect.appendChild(option);
-            } else {
-                trial.days.forEach(day => {
-                    const option = document.createElement('option');
-                    option.value = day.date;
-                    option.textContent = `Day ${day.day} - ${day.date}`;
-                    dateSelect.appendChild(option);
-                });
-            }
-            
-            if (!selectedDate) return;
-            
-            // Load running order for selected date
-            const container = document.getElementById('runningOrderContainer');
-            container.innerHTML = '';
-            
-            // Create columns for each class/round combination
-            const columns = getRunningOrderColumns(trial, selectedDate);
-            
-            columns.forEach((column, index) => {
-                const columnDiv = document.createElement('div');
-                columnDiv.className = 'order-column';
-                columnDiv.innerHTML = `
-                    <h4>${column.title}</h4>
-                    <div id="column-${index}" class="column-content">
-                        ${column.participants.map((participant, pIndex) => `
-                            <div class="participant-item" data-participant="${pIndex}">
-                                <span>${participant.dog} - ${participant.handler}</span>
-                                <div class="move-buttons">
-                                    <button class="move-btn" onclick="moveParticipant(${index}, ${pIndex}, 'up')">↑</button>
-                                    <button class="move-btn" onclick="moveParticipant(${index}, ${pIndex}, 'down')">↓</button>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-                container.appendChild(columnDiv);
-            });
-        }
-
-        function getRunningOrderColumns(trial, date) {
-            // Mock data - in production, this would come from actual entries
-            const mockParticipants = [
-                { dog: 'Spot', handler: 'John Smith' },
-                { dog: 'Rover', handler: 'Jane Doe' },
-                { dog: 'Max', handler: 'Bob Johnson' },
-                { dog: 'Bella', handler: 'Sarah Williams' }
-            ];
-            
-            const columns = [];
-            
-            if (trial.type === 'standalone') {
-                trial.rounds.forEach(round => {
-                    columns.push({
-                        title: `${trial.className} - Round ${round.round} - ${round.judge}`,
-                        participants: [...mockParticipants]
-                    });
-                });
-            } else {
-                const dayData = trial.days.find(day => day.date === date);
-                if (dayData) {
-                    dayData.classes.forEach(cls => {
-                        cls.rounds.forEach(round => {
-                            columns.push({
-                                title: `${cls.className} - Round ${round.round} - ${round.judge}`,
-                                participants: [...mockParticipants]
-                            });
-                        });
-                    });
-                }
-            }
-            
-            return columns;
-        }
-
-        function moveParticipant(columnIndex, participantIndex, direction) {
-            const column = document.getElementById(`column-${columnIndex}`);
-            const participants = Array.from(column.children);
-            
-            if (direction === 'up' && participantIndex > 0) {
-                column.insertBefore(participants[participantIndex], participants[participantIndex - 1]);
-            } else if (direction === 'down' && participantIndex < participants.length - 1) {
-                column.insertBefore(participants[participantIndex + 1], participants[participantIndex]);
-            }
-            
-            // Update data attributes
-            Array.from(column.children).forEach((item, index) => {
-                item.setAttribute('data-participant', index);
-                const buttons = item.querySelectorAll('.move-btn');
-                buttons[0].setAttribute('onclick', `moveParticipant(${columnIndex}, ${index}, 'up')`);
-                buttons[1].setAttribute('onclick', `moveParticipant(${columnIndex}, ${index}, 'down')`);
-            });
-        }
-
-        function submitRunningOrder() {
-            const trialId = document.getElementById('runningOrderTrial').value;
-            const selectedDate = document.getElementById('runningOrderDate').value;
-            
-            if (!trialId || !selectedDate) {
-                alert('Please select a trial and date');
-                return;
-            }
-            
-            // Collect running order data
-            const runningOrderData = [];
-            document.querySelectorAll('.order-column').forEach((column, columnIndex) => {
-                const title = column.querySelector('h4').textContent;
-                const participants = Array.from(column.querySelectorAll('.participant-item')).map(item => {
-                    return item.querySelector('span').textContent;
-                });
-                runningOrderData.push({ title, participants });
-            });
-            
-            // Save running order and generate score sheets
-            const trial = trials.find(t => t.id === trialId);
-            if (!trial.runningOrder) trial.runningOrder = {};
-            trial.runningOrder[selectedDate] = runningOrderData;
-            
-            saveTrialsToStorage();
-            
-            // Generate score sheets
-            generateScoreSheets(trial, selectedDate, runningOrderData);
-            
-            alert('Running order submitted and score sheets generated!');
-            showTab('results');
-        }
-
-        function generateScoreSheets(trial, date, runningOrderData) {
-            if (!trial.results) trial.results = {};
-            if (!trial.results[date]) trial.results[date] = {};
-            
-            runningOrderData.forEach(column => {
-                const scoreSheet = {
-                    title: column.title,
-                    participants: column.participants.map(participant => ({
-                        name: participant,
-                        scent1: '',
-                        scent2: '',
-                        scent3: '',
-                        scent4: '',
-                        fault1: '',
-                        fault2: '',
-                        time: '',
-                        passfail: ''
-                    }))
-                };
-                
-                trial.results[date][column.title] = scoreSheet;
-            });
-            
-            saveTrialsToStorage();
-        }
-
-        function loadResults() {
-            const trialId = document.getElementById('resultsTrial').value;
-            if (!trialId) return;
-            
-            const trial = trials.find(t => t.id === trialId);
-            if (!trial || !trial.results) return;
-            
-            const container = document.getElementById('resultsContainer');
-            container.innerHTML = '';
-            
-            Object.keys(trial.results).forEach(date => {
-                const dateSection = document.createElement('div');
-                dateSection.innerHTML = `<h3>Results for ${date}</h3>`;
-                
-                Object.keys(trial.results[date]).forEach(sheetTitle => {
-                    const scoreSheet = trial.results[date][sheetTitle];
-                    const sheetDiv = document.createElement('div');
-                    sheetDiv.className = 'scoresheet';
-                    
-                    sheetDiv.innerHTML = `
-                        <div class="scoresheet-header">
-                            <h4>${sheetTitle}</h4>
-                        </div>
-                        <div class="score-row">
-                            <strong>Team</strong>
-                            <strong>Scent 1</strong>
-                            <strong>Scent 2</strong>
-                            <strong>Scent 3</strong>
-                            <strong>Scent 4</strong>
-                            <strong>Fault</strong>
-                            <strong>Fault</strong>
-                            <strong>Time</strong>
-                            <strong>Pass/Fail</strong>
-                        </div>
-                        ${scoreSheet.participants.map((participant, index) => `
-                            <div class="score-row">
-                                <span>${participant.name}</span>
-                                <input type="text" class="score-input" value="${participant.scent1}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'scent1', this.value)">
-                                <input type="text" class="score-input" value="${participant.scent2}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'scent2', this.value)">
-                                <input type="text" class="score-input" value="${participant.scent3}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'scent3', this.value)">
-                                <input type="text" class="score-input" value="${participant.scent4}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'scent4', this.value)">
-                                <input type="text" class="score-input" value="${participant.fault1}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'fault1', this.value)">
-                                <input type="text" class="score-input" value="${participant.fault2}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'fault2', this.value)">
-                                <input type="text" class="score-input" value="${participant.time}" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'time', this.value)">
-                                <select class="score-input" onchange="updateScore('${trialId}', '${date}', '${sheetTitle}', ${index}, 'passfall', this.value)">
-                                    <option value="">-</option>
-                                    <option value="Pass" ${participant.passfall === 'Pass' ? 'selected' : ''}>Pass</option>
-                                    <option value="Fail" ${participant.passfall === 'Fail' ? 'selected' : ''}>Fail</option>
-                                </select>
-                            </div>
-                        `).join('')}
-                    `;
-                    
-                    dateSection.appendChild(sheetDiv);
-                });
-                
-                container.appendChild(dateSection);
-            });
-            
-            // Add print button
-            const printBtn = document.createElement('button');
-            printBtn.className = 'btn';
-            printBtn.textContent = 'Print Score Sheets';
-            printBtn.onclick = () => printScoreSheets(trialId);
-            container.appendChild(printBtn);
-        }
-
-        function updateScore(trialId, date, sheetTitle, participantIndex, field, value) {
-            const trial = trials.find(t => t.id === trialId);
-            if (trial && trial.results && trial.results[date] && trial.results[date][sheetTitle]) {
-                trial.results[date][sheetTitle].participants[participantIndex][field] = value;
-                saveTrialsToStorage();
-            }
-        }
-
-        function printScoreSheets(trialId) {
-            window.print();
-        }
-
-        function loadSummary() {
-            const trialId = document.getElementById('summaryTrial').value;
-            if (!trialId) return;
-            
-            const trial = trials.find(t => t.id === trialId);
-            if (!trial) return;
-            
-            const container = document.getElementById('summaryContainer');
-            container.innerHTML = '<h3>Trial Summary</h3>';
-            
-            // Generate summary based on trial type and results
-            const summaryData = generateSummaryData(trial);
-            
-            const summaryDiv = document.createElement('div');
-            summaryDiv.innerHTML = `
-                <div class="trial-card">
-                    <h4>Trial Information</h4>
-                    <p><strong>Host:</strong> ${trial.hostName}</p>
-                    <p><strong>Location:</strong> ${trial.location}</p>
-                    <p><strong>Contact:</strong> ${trial.contactName} (${trial.contactEmail})</p>
-                    <p><strong>Type:</strong> ${trial.type}</p>
-                    <p><strong>Total Entries:</strong> ${summaryData.totalEntries}</p>
-                    <p><strong>Total Runs:</strong> ${summaryData.totalRuns}</p>
-                    <p><strong>Qualifying Scores:</strong> ${summaryData.qualifyingScores}</p>
-                </div>
-            `;
-            
-            container.appendChild(summaryDiv);
-        }
-
-        function generateSummaryData(trial) {
-            let totalEntries = 0;
-            let totalRuns = 0;
-            let qualifyingScores = 0;
-            
-            if (trial.results) {
-                Object.values(trial.results).forEach(dateResults => {
-                    Object.values(dateResults).forEach(scoreSheet => {
-                        totalRuns += scoreSheet.participants.length;
-                        scoreSheet.participants.forEach(participant => {
-                            if (participant.passfall === 'Pass') {
-                                qualifyingScores++;
-                            }
-                        });
-                    });
-                });
-            }
-            
-            // Estimate unique entries (in production, this would be tracked properly)
-            totalEntries = Math.ceil(totalRuns / 2);
-            
-            return { totalEntries, totalRuns, qualifyingScores };
-        }
-
-        function generateSummaryReport() {
-            const trialId = document.getElementById('summaryTrial').value;
-            if (!trialId) {
-                alert('Please select a trial');
-                return;
-            }
-            
-            const trial = trials.find(t => t.id === trialId);
-            if (!trial) return;
-            
-            // Generate and download summary report
-            const summaryData = generateSummaryData(trial);
-            const reportContent = `
-C-WAGS Trial Summary Report
-
-Host: ${trial.hostName}
-Location: ${trial.location}
-Contact: ${trial.contactName}
-Email: ${trial.contactEmail}
-Phone: ${trial.contactPhone}
-
-Trial Type: ${trial.type}
-Total Entries: ${summaryData.totalEntries}
-Total Runs: ${summaryData.totalRuns}
-Qualifying Scores: ${summaryData.qualifyingScores}
-
-Generated on: ${new Date().toLocaleString()}
-            `;
-            
-            const blob = new Blob([reportContent], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `trial_summary_${trial.id}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        function saveTrialsToStorage() {
-            localStorage.setItem('cwags_trials', JSON.stringify(trials));
-        }
-
-        function loadTrialsFromStorage() {
-            const stored = localStorage.getItem('cwags_trials');
-            if (stored) {
-                trials = JSON.parse(stored);
-            }
-        }
-
-        // Event listeners for numeric input changes
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('numRounds').addEventListener('change', updateRoundsConfig);
-            document.getElementById('leagueDays').addEventListener('change', updateDaysConfig);
-        });
-
-        // Initialize the application
-        init();
-    </script>
-</body>
-</html>
+                console.log('Classes:',
