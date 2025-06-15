@@ -335,7 +335,95 @@
     </style>
 </head>
 <body>
-    <div class="container">
+            <div class="container">
+        <!-- Entry Form (Public Access) -->
+        <div id="entryFormSection" class="login-section hidden">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2>🐕 Trial Entry Form</h2>
+                <p id="entryTrialInfo"></p>
+            </div>
+            
+            <div id="entryFormContent">
+                <div class="form-group">
+                    <label for="entryOwnerName">Owner/Handler Name *:</label>
+                    <input type="text" id="entryOwnerName" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="entryAddress">Address *:</label>
+                    <textarea id="entryAddress" rows="3" required></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="entryPhone">Phone Number *:</label>
+                    <input type="tel" id="entryPhone" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="entryEmail">Email Address *:</label>
+                    <input type="email" id="entryEmail" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="entryDogName">Dog's Call Name *:</label>
+                    <input type="text" id="entryDogName" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="entryDogFullName">Dog's Full Registered Name:</label>
+                    <input type="text" id="entryDogFullName">
+                </div>
+                
+                <div class="form-group">
+                    <label for="entryBreed">Breed:</label>
+                    <input type="text" id="entryBreed">
+                </div>
+                
+                <div class="form-group">
+                    <label for="entryDogDOB">Dog's Date of Birth:</label>
+                    <input type="date" id="entryDogDOB">
+                </div>
+                
+                <div id="entryClassSelection">
+                    <!-- Will be populated based on trial type -->
+                </div>
+                
+                <div class="form-group">
+                    <label for="entrySpecialNeeds">Special Accommodations Needed:</label>
+                    <textarea id="entrySpecialNeeds" rows="2" placeholder="Any special accommodations or requests"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="entryEmergencyContact">Emergency Contact:</label>
+                    <input type="text" id="entryEmergencyContact" placeholder="Name and phone number">
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="entryWaiver" required>
+                    <label for="entryWaiver">I agree to the trial rules and waiver of liability *</label>
+                </div>
+                
+                <div id="entryEditInfo" class="error hidden">
+                    Note: You can edit this entry until 24 hours before the trial date.
+                </div>
+                
+                <button class="btn" onclick="submitEntry()">Submit Entry</button>
+                <button class="btn btn-secondary" onclick="printEntryForm()">Print Entry Form</button>
+                
+                <div style="margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 10px;">
+                    <h4>📮 Mail-in Entry Option</h4>
+                    <p>You can also print this form and mail your entry to:</p>
+                    <p id="mailInAddress"></p>
+                    <p><strong>Entry Deadline:</strong> <span id="entryDeadline"></span></p>
+                </div>
+            </div>
+            
+            <div id="entrySuccess" class="success hidden">
+                <h3>Entry Submitted Successfully!</h3>
+                <p>Your entry has been recorded. You will receive a confirmation email shortly.</p>
+                <p><strong>Entry ID:</strong> <span id="confirmationId"></span></p>
+            </div>
+        </div>
         <div class="header">
             <h1>🐕 C-WAGS Trial Management System</h1>
             <p>Comprehensive Dog Trial Organization & Scoring Platform</p>
@@ -361,6 +449,7 @@
             <div class="tab-container">
                 <button class="tab active" onclick="showTab('dashboard')">Dashboard</button>
                 <button class="tab" onclick="showTab('create-trial')">Create Trial</button>
+                <button class="tab" onclick="showTab('entries')">Entries</button>
                 <button class="tab" onclick="showTab('running-order')">Running Order</button>
                 <button class="tab" onclick="showTab('results')">Results</button>
                 <button class="tab" onclick="showTab('summary')">Summary</button>
@@ -391,7 +480,108 @@
                 </div>
             </div>
 
-            <!-- Create Trial Tab -->
+            <!-- Entries Management Tab -->
+            <div id="entries" class="tab-content">
+                <h2>Entry Management</h2>
+                
+                <div class="form-group">
+                    <label for="entriesTrial">Select Trial:</label>
+                    <select id="entriesTrial" onchange="loadEntries()">
+                        <option value="">Select a trial</option>
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <button class="btn" onclick="showManualEntryForm()">➕ Add Manual Entry</button>
+                    <button class="btn btn-secondary" onclick="exportEntries()">📄 Export Entries</button>
+                    <button class="btn btn-success" onclick="viewEntryForm()">👁️ View Public Entry Form</button>
+                </div>
+                
+                <!-- Manual Entry Form -->
+                <div id="manualEntryForm" class="hidden" style="background: #f7fafc; padding: 20px; border-radius: 15px; margin-bottom: 20px;">
+                    <h3>Manual Entry (for mail-in entries)</h3>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <div class="form-group">
+                                <label for="manualOwnerName">Owner/Handler Name *:</label>
+                                <input type="text" id="manualOwnerName" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="manualAddress">Address *:</label>
+                                <textarea id="manualAddress" rows="3" required></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="manualPhone">Phone Number *:</label>
+                                <input type="tel" id="manualPhone" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="manualEmail">Email Address:</label>
+                                <input type="email" id="manualEmail">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="manualEntryMethod">Entry Method:</label>
+                                <select id="manualEntryMethod">
+                                    <option value="mail">Mail-in Entry</option>
+                                    <option value="phone">Phone Entry</option>
+                                    <option value="in-person">In-Person Entry</option>
+                                    <option value="online">Online Entry</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="form-group">
+                                <label for="manualDogName">Dog's Call Name *:</label>
+                                <input type="text" id="manualDogName" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="manualDogFullName">Dog's Full Registered Name:</label>
+                                <input type="text" id="manualDogFullName">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="manualBreed">Breed:</label>
+                                <input type="text" id="manualBreed">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="manualDogDOB">Dog's Date of Birth:</label>
+                                <input type="date" id="manualDogDOB">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="manualSpecialNeeds">Special Accommodations:</label>
+                                <textarea id="manualSpecialNeeds" rows="2"></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="manualEmergencyContact">Emergency Contact:</label>
+                                <input type="text" id="manualEmergencyContact">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="manualClassSelection">
+                        <!-- Will be populated based on selected trial -->
+                    </div>
+                    
+                    <div style="margin-top: 20px;">
+                        <button class="btn" onclick="saveManualEntry()">Save Entry</button>
+                        <button class="btn btn-secondary" onclick="cancelManualEntry()">Cancel</button>
+                    </div>
+                </div>
+                
+                <!-- Entries List -->
+                <div id="entriesList">
+                    <!-- Entries will be populated here -->
+                </div>
+            </div>
             <div id="create-trial" class="tab-content">
                 <h2>Create New Trial</h2>
                 
@@ -566,6 +756,19 @@
         let currentUser = null;
         let trials = [];
         let entries = [];
+        let currentTrialForEntry = null;
+
+        // Check for entry form URL parameter on page load
+        window.addEventListener('load', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const formId = urlParams.get('form');
+            
+            if (formId) {
+                showPublicEntryForm(formId);
+            } else {
+                init();
+            }
+        });
 
         // Initialize the application
         async function init() {
@@ -885,7 +1088,26 @@
             // Generate entry form link
             const entryLink = generateEntryForm(trialData);
             
-            alert(`Trial created successfully!\nEntry Form Link: ${entryLink}`);
+            // Show success message with clickable link
+            const successMessage = `
+                Trial created successfully!
+                
+                Entry Form URL:
+                ${entryLink}
+                
+                Share this link with participants to register for the trial.
+                You can also access this link from the Entries tab.
+            `;
+            
+            alert(successMessage);
+            
+            // Also copy to clipboard if supported
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(entryLink).then(() => {
+                    showNotification('Entry form URL copied to clipboard!', 'success');
+                });
+            }
+            
             loadTrialsList();
             resetTrialForm();
         }
@@ -941,14 +1163,32 @@
             // Generate entry form link
             const entryLink = generateEntryForm(trialData);
             
-            alert(`League trial created successfully!\nEntry Form Link: ${entryLink}`);
+            // Show success message with clickable link
+            const successMessage = `
+                League trial created successfully!
+                
+                Entry Form URL:
+                ${entryLink}
+                
+                Share this link with participants to register for the trial.
+                You can also access this link from the Entries tab.
+            `;
+            
+            alert(successMessage);
+            
+            // Also copy to clipboard if supported
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(entryLink).then(() => {
+                    showNotification('Entry form URL copied to clipboard!', 'success');
+                });
+            }
+            
             loadTrialsList();
             resetTrialForm();
         }
 
         function generateEntryForm(trialData) {
-            // In a real application, this would generate an actual entry form
-            // For now, we'll just create a unique identifier
+            // Create entry form data
             const formId = `entry-form-${trialData.id}`;
             
             // Store the entry form data
@@ -964,7 +1204,9 @@
             // In production, this would be saved to a database
             localStorage.setItem(`entryForm_${formId}`, JSON.stringify(entryForm));
             
-            return `${window.location.origin}${window.location.pathname}?form=${formId}`;
+            // Generate the public entry form URL
+            const baseUrl = window.location.origin + window.location.pathname;
+            return `${baseUrl}?form=${formId}`;
         }
 
         function calculateEditDeadline(trialData) {
