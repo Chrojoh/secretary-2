@@ -253,17 +253,18 @@
         <!-- Login Section -->
         <div id="loginSection" class="section active">
             <h2>Login</h2>
-            <form id="loginForm" onsubmit="handleLogin(event)">
-                <div class="form-group">
-                    <label for="username">Username:</label>
-                    <input type="text" id="username" required>
-                </div>
-                <div class="form-group">
-                    <label for="password">Password:</label>
-                    <input type="password" id="password" required>
-                </div>
-                <button type="submit">Login</button>
-            </form>
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" placeholder="Enter any username">
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" placeholder="Enter 'password' or leave blank">
+            </div>
+            <button onclick="doLogin()">Login</button>
+            <p style="margin-top: 20px; color: #666;">
+                <small>Use password "password" or leave blank to login</small>
+            </p>
         </div>
 
         <!-- Navigation -->
@@ -405,24 +406,38 @@
         }
 
         // Login handling
-        function handleLogin(event) {
-            event.preventDefault();
+        function doLogin() {
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value.trim();
             
-            console.log('Login attempt:', { username: username, passwordLength: password.length });
+            console.log('Login attempt - Username:', username, 'Password entered:', password.length > 0);
             
-            // Simple authentication - accept 'password' or blank for testing
+            // Simple authentication - accept 'password' or blank
             if (password === 'password' || password === '') {
                 appData.currentUser = username || 'Guest';
+                document.getElementById('loginSection').style.display = 'none';
                 document.getElementById('loginSection').classList.remove('active');
                 document.getElementById('navigation').style.display = 'block';
                 showSection('dashboard');
-                loadDashboard();
+                console.log('Login successful for:', appData.currentUser);
             } else {
-                alert('Invalid password. Please use "password" or leave blank.');
+                alert('Invalid password. Please use "password" (without quotes) or leave the password field blank.');
             }
         }
+
+        // Allow Enter key to submit login
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('password').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    doLogin();
+                }
+            });
+            document.getElementById('username').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    doLogin();
+                }
+            });
+        });
 
         function logout() {
             appData.currentUser = null;
