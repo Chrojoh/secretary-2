@@ -12,10 +12,9 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: Arial, sans-serif;
             background: #f5f5f5;
             color: #333;
-            line-height: 1.6;
         }
 
         .container {
@@ -24,151 +23,138 @@
             padding: 20px;
         }
 
-        header {
+        .header {
             background: #2c3e50;
             color: white;
-            padding: 1rem 0;
-            margin-bottom: 2rem;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        header h1 {
+            padding: 20px;
             text-align: center;
-            font-size: 2rem;
+            margin-bottom: 30px;
         }
 
-        .nav-bar {
+        .nav {
             background: #34495e;
-            padding: 1rem;
-            margin-bottom: 2rem;
-            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            display: none;
         }
 
-        .nav-bar button {
+        .nav button {
             background: #3498db;
             color: white;
             border: none;
-            padding: 0.5rem 1rem;
-            margin-right: 0.5rem;
-            border-radius: 4px;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 3px;
             cursor: pointer;
-            transition: background 0.3s;
         }
 
-        .nav-bar button:hover {
+        .nav button:hover {
             background: #2980b9;
         }
 
-        .nav-bar button.active {
+        .nav button.active {
             background: #e74c3c;
         }
 
         .section {
-            display: none;
             background: white;
-            padding: 2rem;
+            padding: 30px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: none;
         }
 
         .section.active {
             display: block;
         }
 
-        input, select, textarea {
-            width: 100%;
-            padding: 0.5rem;
-            margin-bottom: 1rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 1rem;
+        .form-group {
+            margin-bottom: 20px;
         }
 
         label {
             display: block;
-            margin-bottom: 0.5rem;
+            margin-bottom: 5px;
             font-weight: bold;
-            color: #555;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="date"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        input[type="checkbox"] {
+            margin-right: 10px;
         }
 
         button {
             background: #27ae60;
             color: white;
             border: none;
-            padding: 0.75rem 1.5rem;
+            padding: 10px 20px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 1rem;
-            transition: background 0.3s;
+            font-size: 16px;
         }
 
         button:hover {
             background: #229954;
         }
 
-        .form-group {
-            margin-bottom: 1.5rem;
+        .trial-card {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
         }
 
-        .trial-type-selector {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .trial-type-selector label {
-            display: flex;
-            align-items: center;
-            cursor: pointer;
-        }
-
-        .trial-type-selector input[type="radio"] {
-            width: auto;
-            margin-right: 0.5rem;
+        .trial-card h3 {
+            margin-bottom: 10px;
+            color: #2c3e50;
         }
 
         .round-config {
-            background: #f8f9fa;
-            padding: 1rem;
-            border-radius: 4px;
-            margin-bottom: 1rem;
+            background: #f0f0f0;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
         }
 
-        .running-order-item {
-            background: #f8f9fa;
-            padding: 1rem;
-            margin-bottom: 0.5rem;
-            border-radius: 4px;
-            cursor: move;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .day-config {
+            background: #e8f4f8;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border: 2px solid #3498db;
         }
 
-        .running-order-item.dragging {
-            opacity: 0.5;
-        }
-
-        .arrow-buttons {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .arrow-buttons button {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.8rem;
+        .class-config {
+            background: #fff;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 1rem;
+            margin-top: 20px;
         }
 
         th, td {
             border: 1px solid #ddd;
-            padding: 0.5rem;
+            padding: 10px;
             text-align: left;
         }
 
@@ -181,69 +167,93 @@
             background: #f8f9fa;
         }
 
-        .score-input {
-            width: 100px;
+        .running-order-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #ddd;
+        }
+
+        .running-order-item:hover {
+            background: #e9ecef;
+        }
+
+        .running-order-item.dragging {
+            opacity: 0.5;
+        }
+
+        .arrow-buttons button {
+            padding: 5px 10px;
+            margin-left: 5px;
+            font-size: 14px;
         }
 
         .entry-link {
             background: #3498db;
             color: white;
-            padding: 1rem;
-            border-radius: 4px;
-            margin: 1rem 0;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
             text-align: center;
         }
 
         .entry-link a {
             color: white;
-            text-decoration: none;
-            font-weight: bold;
+            word-break: break-all;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
         }
 
         @media print {
+            .nav, .no-print {
+                display: none !important;
+            }
+            
             body {
                 background: white;
             }
-            
-            .no-print {
-                display: none;
-            }
         }
 
-        .day-config {
-            background: #e8f4f8;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            border-radius: 8px;
-            border: 2px solid #3498db;
+        .score-sheet-container {
+            margin-bottom: 30px;
         }
 
-        .class-config {
-            background: #f0f0f0;
-            padding: 1rem;
-            margin-bottom: 0.5rem;
-            border-radius: 4px;
-        }
-
-        .league-summary {
-            margin-top: 1rem;
-            padding: 1rem;
-            background: #fffbf0;
-            border: 1px solid #f39c12;
-            border-radius: 4px;
+        .score-input {
+            width: 80px;
         }
     </style>
 </head>
 <body>
-    <header>
+    <div class="header">
         <h1>C-WAGS Trial Management System</h1>
-    </header>
+    </div>
 
     <div class="container">
         <!-- Login Section -->
         <div id="loginSection" class="section active">
             <h2>Login</h2>
-            <form id="loginForm">
+            <form id="loginForm" onsubmit="handleLogin(event)">
                 <div class="form-group">
                     <label for="username">Username:</label>
                     <input type="text" id="username" required>
@@ -256,63 +266,63 @@
             </form>
         </div>
 
-        <!-- Navigation Bar (shown after login) -->
-        <div id="navBar" class="nav-bar" style="display: none;">
-            <button onclick="showSection('dashboard')">Dashboard</button>
-            <button onclick="showSection('createTrial')">Create Trial</button>
-            <button onclick="showSection('entryForm')">Entry Form</button>
-            <button onclick="showSection('runningOrder')">Running Order</button>
-            <button onclick="showSection('results')">Results</button>
-            <button onclick="showSection('summary')">Summary</button>
+        <!-- Navigation -->
+        <div id="navigation" class="nav">
+            <button onclick="showSection('dashboard')" id="navDashboard">Dashboard</button>
+            <button onclick="showSection('createTrial')" id="navCreateTrial">Create Trial</button>
+            <button onclick="showSection('entryForm')" id="navEntryForm">Entry Form</button>
+            <button onclick="showSection('runningOrder')" id="navRunningOrder">Running Order</button>
+            <button onclick="showSection('results')" id="navResults">Results</button>
+            <button onclick="showSection('summary')" id="navSummary">Summary</button>
             <button onclick="logout()">Logout</button>
         </div>
 
-        <!-- Dashboard Section -->
+        <!-- Dashboard -->
         <div id="dashboardSection" class="section">
             <h2>Dashboard</h2>
             <div id="trialsList"></div>
         </div>
 
-        <!-- Create Trial Section -->
+        <!-- Create Trial -->
         <div id="createTrialSection" class="section">
             <h2>Create New Trial</h2>
-            <form id="createTrialForm">
-                <div class="trial-type-selector">
+            <form id="createTrialForm" onsubmit="handleCreateTrial(event)">
+                <div class="form-group">
+                    <label>Trial Type:</label>
                     <label>
-                        <input type="radio" name="trialType" value="standalone" checked>
+                        <input type="radio" name="trialType" value="standalone" checked onchange="updateTrialType()">
                         Standalone Trial
                     </label>
                     <label>
-                        <input type="radio" name="trialType" value="league">
+                        <input type="radio" name="trialType" value="league" onchange="updateTrialType()">
                         League Trial
                     </label>
                 </div>
 
-                <div id="standaloneConfig" class="trial-config">
+                <!-- Standalone Configuration -->
+                <div id="standaloneConfig">
                     <div class="form-group">
                         <label for="trialDate">Trial Date:</label>
                         <input type="date" id="trialDate" required>
                     </div>
-
                     <div class="form-group">
                         <label for="className">Class:</label>
                         <select id="className" required>
                             <option value="">Select a class</option>
                         </select>
                     </div>
-
                     <div class="form-group">
                         <label for="numRounds">Number of Rounds:</label>
-                        <input type="number" id="numRounds" min="1" max="5" value="1" required>
+                        <input type="number" id="numRounds" min="1" max="5" value="1" onchange="updateRoundsConfig()">
                     </div>
-
                     <div id="roundsConfig"></div>
                 </div>
 
-                <div id="leagueConfig" class="trial-config" style="display: none;">
+                <!-- League Configuration -->
+                <div id="leagueConfig" style="display: none;">
                     <div class="form-group">
                         <label for="numDays">Number of Days:</label>
-                        <input type="number" id="numDays" min="1" max="10" value="1" required>
+                        <input type="number" id="numDays" min="1" max="10" value="1" onchange="updateDaysConfig()">
                     </div>
                     <div id="daysConfig"></div>
                 </div>
@@ -321,25 +331,25 @@
             </form>
         </div>
 
-        <!-- Entry Form Section -->
+        <!-- Entry Form -->
         <div id="entryFormSection" class="section">
             <h2>Entry Form</h2>
             <div id="entryFormContent"></div>
         </div>
 
-        <!-- Running Order Section -->
+        <!-- Running Order -->
         <div id="runningOrderSection" class="section">
             <h2>Running Order</h2>
             <div id="runningOrderContent"></div>
         </div>
 
-        <!-- Results Section -->
+        <!-- Results -->
         <div id="resultsSection" class="section">
             <h2>Results</h2>
             <div id="resultsContent"></div>
         </div>
 
-        <!-- Summary Section -->
+        <!-- Summary -->
         <div id="summarySection" class="section">
             <h2>Summary</h2>
             <div id="summaryContent"></div>
@@ -347,8 +357,12 @@
     </div>
 
     <script>
-        // Sample data structure for Excel simulation
-        const excelData = {
+        // Data structures
+        const appData = {
+            currentUser: null,
+            currentTrial: null,
+            trials: [],
+            entries: [],
             classes: [
                 'Patrol 1', 'Patrol 2', 'Patrol 3',
                 'Ranger 1', 'Ranger 2', 'Ranger 3',
@@ -360,244 +374,266 @@
             judges: [
                 'Sarah Knight', 'Lane Michie', 'Gary Truitt',
                 'William Johnson', 'Patty Brown', 'Sandy Williams'
-            ],
-            dogs: [
-                { id: '10-0001-01', callName: 'Lucy', fullName: 'Lucy\'s Full Name', handler: 'Gary Smith' },
-                { id: '11-0101-01', callName: 'Akasha', fullName: 'Akasha\'s Full Name', handler: 'Marla Jones' },
-                { id: '12-2002-01', callName: 'Artoo', fullName: 'Artoo\'s Full Name', handler: 'Jodie Wilson' },
-                { id: '13-3003-01', callName: 'Stanley', fullName: 'Stanley\'s Full Name', handler: 'Amanda Brown' },
-                { id: '14-4004-01', callName: 'Arwyn', fullName: 'Arwyn\'s Full Name', handler: 'FEO-Marla-Arwyn' },
-                { id: '15-5005-01', callName: 'Goose', fullName: 'Goose\'s Full Name', handler: 'Chelsea Miller' },
-                { id: '16-6006-01', callName: 'Levee', fullName: 'Levee\'s Full Name', handler: 'Jasmin Davis' },
-                { id: '17-7007-01', callName: 'Sushi', fullName: 'Sushi\'s Full Name', handler: 'Riise Anderson' },
-                { id: '18-8008-01', callName: 'Sno', fullName: 'Sno\'s Full Name', handler: 'Riise Anderson' }
             ]
         };
 
-        // Application state
-        let currentUser = null;
-        let trials = [];
-        let currentTrial = null;
-        let entries = [];
+        // Initialize application
+        function init() {
+            loadFromStorage();
+            populateClassDropdown();
+            
+            // Check for entry link
+            const urlParams = new URLSearchParams(window.location.search);
+            const entryId = urlParams.get('entry');
+            if (entryId) {
+                showEntryFormDirect(entryId);
+            }
+        }
 
-        // Login function
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
-            e.preventDefault();
+        // Storage functions
+        function saveToStorage() {
+            localStorage.setItem('cwags_trials', JSON.stringify(appData.trials));
+            localStorage.setItem('cwags_entries', JSON.stringify(appData.entries));
+        }
+
+        function loadFromStorage() {
+            const trials = localStorage.getItem('cwags_trials');
+            const entries = localStorage.getItem('cwags_entries');
+            
+            if (trials) appData.trials = JSON.parse(trials);
+            if (entries) appData.entries = JSON.parse(entries);
+        }
+
+        // Login handling
+        function handleLogin(event) {
+            event.preventDefault();
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             
-            // Simple authentication (in production, this would be server-side)
             if (password === 'password') {
-                currentUser = username;
-                document.getElementById('loginSection').style.display = 'none';
-                document.getElementById('navBar').style.display = 'block';
+                appData.currentUser = username;
+                document.getElementById('loginSection').classList.remove('active');
+                document.getElementById('navigation').style.display = 'block';
                 showSection('dashboard');
-                loadUserTrials();
             } else {
-                alert('Invalid credentials');
-            }
-        });
-
-        // Navigation functions
-        function showSection(section) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.getElementById(section + 'Section').classList.add('active');
-            
-            // Load section-specific content
-            if (section === 'createTrial') {
-                loadCreateTrialForm();
-            } else if (section === 'runningOrder') {
-                loadRunningOrder();
-            } else if (section === 'results') {
-                loadResults();
-            } else if (section === 'summary') {
-                loadSummary();
+                alert('Invalid password');
             }
         }
 
         function logout() {
-            currentUser = null;
-            document.getElementById('navBar').style.display = 'none';
+            appData.currentUser = null;
+            appData.currentTrial = null;
+            document.getElementById('navigation').style.display = 'none';
             showSection('login');
-            document.getElementById('loginSection').style.display = 'block';
         }
 
-        // Load user trials
-        function loadUserTrials() {
-            const trialsList = document.getElementById('trialsList');
-            const userTrials = currentUser === 'TheAdmin' ? trials : trials.filter(t => t.creator === currentUser);
+        // Navigation
+        function showSection(section) {
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            
+            // Show selected section
+            document.getElementById(section + 'Section').classList.add('active');
+            
+            // Update nav buttons
+            document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+            const navButton = document.getElementById('nav' + section.charAt(0).toUpperCase() + section.slice(1));
+            if (navButton) navButton.classList.add('active');
+            
+            // Load section data
+            if (section === 'dashboard') loadDashboard();
+            else if (section === 'runningOrder') loadRunningOrder();
+            else if (section === 'results') loadResults();
+            else if (section === 'summary') loadSummary();
+        }
+
+        // Dashboard
+        function loadDashboard() {
+            const container = document.getElementById('trialsList');
+            const userTrials = appData.currentUser === 'TheAdmin' ? 
+                appData.trials : 
+                appData.trials.filter(t => t.creator === appData.currentUser);
             
             if (userTrials.length === 0) {
-                trialsList.innerHTML = '<p>No trials created yet. <a href="#" onclick="showSection(\'createTrial\')">Create your first trial</a></p>';
-            } else {
-                let html = '<table><tr><th>Trial Name</th><th>Type</th><th>Date(s)</th><th>Actions</th></tr>';
-                userTrials.forEach((trial, index) => {
-                    html += `<tr>
-                        <td>${trial.name}</td>
-                        <td>${trial.type}</td>
-                        <td>${trial.dates.join(', ')}</td>
-                        <td>
-                            <button onclick="viewTrial(${index})">View</button>
-                            <button onclick="editTrial(${index})">Edit</button>
-                        </td>
-                    </tr>`;
-                });
-                html += '</table>';
-                trialsList.innerHTML = html;
+                container.innerHTML = '<p>No trials created yet. <button onclick="showSection(\'createTrial\')">Create your first trial</button></p>';
+                return;
             }
-        }
-
-        // Load create trial form
-        function loadCreateTrialForm() {
-            // Populate class dropdown
-            const classSelect = document.getElementById('className');
-            classSelect.innerHTML = '<option value="">Select a class</option>';
-            excelData.classes.forEach(cls => {
-                classSelect.innerHTML += `<option value="${cls}">${cls}</option>`;
-            });
-
-            // Handle trial type change
-            document.querySelectorAll('input[name="trialType"]').forEach(radio => {
-                radio.addEventListener('change', function() {
-                    if (this.value === 'standalone') {
-                        document.getElementById('standaloneConfig').style.display = 'block';
-                        document.getElementById('leagueConfig').style.display = 'none';
-                    } else {
-                        document.getElementById('standaloneConfig').style.display = 'none';
-                        document.getElementById('leagueConfig').style.display = 'block';
-                    }
-                });
-            });
-
-            // Handle number of rounds change
-            document.getElementById('numRounds').addEventListener('change', updateRoundsConfig);
             
-            // Handle number of days change for league
-            document.getElementById('numDays').addEventListener('change', updateDaysConfig);
+            let html = '';
+            userTrials.forEach((trial, index) => {
+                html += `
+                    <div class="trial-card">
+                        <h3>${trial.name}</h3>
+                        <p>Type: ${trial.type}</p>
+                        <p>Dates: ${trial.dates.join(', ')}</p>
+                        <p>Classes: ${trial.classes.length}</p>
+                        <button onclick="selectTrial(${index})">Select</button>
+                        <button onclick="viewEntryForm(${index})">Entry Form</button>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
         }
 
-        // Update rounds configuration
+        function selectTrial(index) {
+            appData.currentTrial = appData.trials[index];
+            alert('Trial selected: ' + appData.currentTrial.name);
+        }
+
+        function viewEntryForm(index) {
+            appData.currentTrial = appData.trials[index];
+            showSection('entryForm');
+            generateEntryForm();
+        }
+
+        // Trial creation
+        function populateClassDropdown() {
+            const select = document.getElementById('className');
+            select.innerHTML = '<option value="">Select a class</option>';
+            appData.classes.forEach(cls => {
+                select.innerHTML += `<option value="${cls}">${cls}</option>`;
+            });
+        }
+
+        function updateTrialType() {
+            const type = document.querySelector('input[name="trialType"]:checked').value;
+            document.getElementById('standaloneConfig').style.display = type === 'standalone' ? 'block' : 'none';
+            document.getElementById('leagueConfig').style.display = type === 'league' ? 'block' : 'none';
+        }
+
         function updateRoundsConfig() {
             const numRounds = parseInt(document.getElementById('numRounds').value);
             const container = document.getElementById('roundsConfig');
-            container.innerHTML = '';
-
+            
+            let html = '';
             for (let i = 1; i <= numRounds; i++) {
-                container.innerHTML += `
+                html += `
                     <div class="round-config">
                         <h4>Round ${i}</h4>
                         <div class="form-group">
-                            <label for="judge_round_${i}">Judge:</label>
-                            <select id="judge_round_${i}" required>
+                            <label for="judge_r${i}">Judge:</label>
+                            <select id="judge_r${i}" required>
                                 <option value="">Select a judge</option>
-                                ${excelData.judges.map(j => `<option value="${j}">${j}</option>`).join('')}
+                                ${appData.judges.map(j => `<option value="${j}">${j}</option>`).join('')}
                             </select>
                         </div>
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" id="feo_round_${i}">
+                                <input type="checkbox" id="feo_r${i}">
                                 FEO offered for this round?
                             </label>
                         </div>
                     </div>
                 `;
             }
+            
+            container.innerHTML = html;
         }
 
-        // Update days configuration for league
         function updateDaysConfig() {
             const numDays = parseInt(document.getElementById('numDays').value);
             const container = document.getElementById('daysConfig');
-            container.innerHTML = '';
-
+            
+            let html = '';
             for (let day = 1; day <= numDays; day++) {
-                container.innerHTML += `
+                html += `
                     <div class="day-config">
                         <h3>Day ${day}</h3>
                         <div class="form-group">
-                            <label for="date_day_${day}">Date:</label>
-                            <input type="date" id="date_day_${day}" required>
+                            <label for="date_d${day}">Date:</label>
+                            <input type="date" id="date_d${day}" required>
                         </div>
                         <div class="form-group">
-                            <label for="numClasses_day_${day}">Number of Classes:</label>
-                            <input type="number" id="numClasses_day_${day}" min="1" max="10" value="1" onchange="updateClassesForDay(${day})">
+                            <label for="numClasses_d${day}">Number of Classes:</label>
+                            <input type="number" id="numClasses_d${day}" min="1" max="10" value="1" onchange="updateClassesForDay(${day})">
                         </div>
-                        <div id="classes_day_${day}"></div>
+                        <div id="classes_d${day}"></div>
                     </div>
                 `;
             }
+            
+            container.innerHTML = html;
+            
+            // Initialize first class for each day
+            for (let day = 1; day <= numDays; day++) {
+                updateClassesForDay(day);
+            }
         }
 
-        // Update classes for a specific day in league
         function updateClassesForDay(day) {
-            const numClasses = parseInt(document.getElementById(`numClasses_day_${day}`).value);
-            const container = document.getElementById(`classes_day_${day}`);
-            container.innerHTML = '';
-
+            const numClasses = parseInt(document.getElementById(`numClasses_d${day}`).value);
+            const container = document.getElementById(`classes_d${day}`);
+            
+            let html = '';
             for (let cls = 1; cls <= numClasses; cls++) {
-                container.innerHTML += `
+                html += `
                     <div class="class-config">
                         <h4>Class ${cls}</h4>
                         <div class="form-group">
-                            <label for="class_day_${day}_cls_${cls}">Class Name:</label>
-                            <select id="class_day_${day}_cls_${cls}" required>
+                            <label for="class_d${day}_c${cls}">Class Name:</label>
+                            <select id="class_d${day}_c${cls}" required>
                                 <option value="">Select a class</option>
-                                ${excelData.classes.map(c => `<option value="${c}">${c}</option>`).join('')}
+                                ${appData.classes.map(c => `<option value="${c}">${c}</option>`).join('')}
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="rounds_day_${day}_cls_${cls}">Number of Rounds:</label>
-                            <input type="number" id="rounds_day_${day}_cls_${cls}" min="1" max="5" value="1" onchange="updateRoundsForClass(${day}, ${cls})">
+                            <label for="rounds_d${day}_c${cls}">Number of Rounds:</label>
+                            <input type="number" id="rounds_d${day}_c${cls}" min="1" max="5" value="1" onchange="updateRoundsForClass(${day}, ${cls})">
                         </div>
-                        <div id="rounds_day_${day}_cls_${cls}_config"></div>
+                        <div id="rounds_d${day}_c${cls}_config"></div>
                     </div>
                 `;
             }
+            
+            container.innerHTML = html;
+            
+            // Initialize rounds
+            for (let cls = 1; cls <= numClasses; cls++) {
+                updateRoundsForClass(day, cls);
+            }
         }
 
-        // Update rounds for a specific class
         function updateRoundsForClass(day, cls) {
-            const numRounds = parseInt(document.getElementById(`rounds_day_${day}_cls_${cls}`).value);
-            const container = document.getElementById(`rounds_day_${day}_cls_${cls}_config`);
-            container.innerHTML = '';
-
+            const numRounds = parseInt(document.getElementById(`rounds_d${day}_c${cls}`).value);
+            const container = document.getElementById(`rounds_d${day}_c${cls}_config`);
+            
+            let html = '';
             for (let round = 1; round <= numRounds; round++) {
-                container.innerHTML += `
+                html += `
                     <div style="margin-left: 20px; margin-bottom: 10px;">
                         <strong>Round ${round}</strong>
                         <div class="form-group">
-                            <label for="judge_day_${day}_cls_${cls}_round_${round}">Judge:</label>
-                            <select id="judge_day_${day}_cls_${cls}_round_${round}" required>
+                            <label for="judge_d${day}_c${cls}_r${round}">Judge:</label>
+                            <select id="judge_d${day}_c${cls}_r${round}" required>
                                 <option value="">Select a judge</option>
-                                ${excelData.judges.map(j => `<option value="${j}">${j}</option>`).join('')}
+                                ${appData.judges.map(j => `<option value="${j}">${j}</option>`).join('')}
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="feo_day_${day}_cls_${cls}_round_${round}">
-                                FEO offered?
-                            </label>
-                        </div>
+                        <label>
+                            <input type="checkbox" id="feo_d${day}_c${cls}_r${round}">
+                            FEO offered?
+                        </label>
                     </div>
                 `;
             }
+            
+            container.innerHTML = html;
         }
 
-        // Handle trial creation
-        document.getElementById('createTrialForm').addEventListener('submit', function(e) {
-            e.preventDefault();
+        function handleCreateTrial(event) {
+            event.preventDefault();
             
             const trialType = document.querySelector('input[name="trialType"]:checked').value;
             const trial = {
                 id: Date.now(),
-                creator: currentUser,
+                creator: appData.currentUser,
                 type: trialType,
                 name: '',
                 dates: [],
-                classes: [],
-                entries: []
+                classes: []
             };
-
+            
             if (trialType === 'standalone') {
                 const date = document.getElementById('trialDate').value;
                 const className = document.getElementById('className').value;
@@ -610,8 +646,8 @@
                 for (let i = 1; i <= numRounds; i++) {
                     rounds.push({
                         round: i,
-                        judge: document.getElementById(`judge_round_${i}`).value,
-                        feo: document.getElementById(`feo_round_${i}`).checked
+                        judge: document.getElementById(`judge_r${i}`).value,
+                        feo: document.getElementById(`feo_r${i}`).checked
                     });
                 }
                 
@@ -623,24 +659,24 @@
             } else {
                 // League trial
                 const numDays = parseInt(document.getElementById('numDays').value);
-                trial.name = 'League Trial';
+                trial.name = 'League Trial - ' + new Date().toLocaleDateString();
                 
                 for (let day = 1; day <= numDays; day++) {
-                    const date = document.getElementById(`date_day_${day}`).value;
+                    const date = document.getElementById(`date_d${day}`).value;
                     trial.dates.push(date);
                     
-                    const numClasses = parseInt(document.getElementById(`numClasses_day_${day}`).value);
+                    const numClasses = parseInt(document.getElementById(`numClasses_d${day}`).value);
                     
                     for (let cls = 1; cls <= numClasses; cls++) {
-                        const className = document.getElementById(`class_day_${day}_cls_${cls}`).value;
-                        const numRounds = parseInt(document.getElementById(`rounds_day_${day}_cls_${cls}`).value);
+                        const className = document.getElementById(`class_d${day}_c${cls}`).value;
+                        const numRounds = parseInt(document.getElementById(`rounds_d${day}_c${cls}`).value);
                         
                         const rounds = [];
                         for (let round = 1; round <= numRounds; round++) {
                             rounds.push({
                                 round: round,
-                                judge: document.getElementById(`judge_day_${day}_cls_${cls}_round_${round}`).value,
-                                feo: document.getElementById(`feo_day_${day}_cls_${cls}_round_${round}`).checked
+                                judge: document.getElementById(`judge_d${day}_c${cls}_r${round}`).value,
+                                feo: document.getElementById(`feo_d${day}_c${cls}_r${round}`).checked
                             });
                         }
                         
@@ -652,105 +688,127 @@
                     }
                 }
             }
-
-            trials.push(trial);
-            currentTrial = trial;
             
-            // Generate entry form
-            generateEntryForm(trial);
+            appData.trials.push(trial);
+            appData.currentTrial = trial;
+            saveToStorage();
             
             alert('Trial created successfully!');
-            showSection('dashboard');
-            loadUserTrials();
-        });
+            showSection('entryForm');
+            generateEntryForm();
+        }
 
-        // Generate entry form
-        function generateEntryForm(trial) {
-            const entryFormContent = document.getElementById('entryFormContent');
-            const entryLink = `${window.location.href}?entry=${trial.id}`;
+        // Entry form
+        function generateEntryForm() {
+            if (!appData.currentTrial) return;
+            
+            const container = document.getElementById('entryFormContent');
+            const entryLink = `${window.location.origin}${window.location.pathname}?entry=${appData.currentTrial.id}`;
             
             let html = `
                 <div class="entry-link">
-                    <p>Entry Form Link:</p>
-                    <a href="${entryLink}" target="_blank">${entryLink}</a>
+                    <p><strong>Entry Form Link:</strong></p>
+                    <p><a href="${entryLink}" target="_blank">${entryLink}</a></p>
                     <button onclick="navigator.clipboard.writeText('${entryLink}')">Copy Link</button>
                 </div>
                 
                 <h3>Entry Form Preview</h3>
-                <form id="trialEntryForm">
+                <form id="trialEntryForm" onsubmit="handleEntrySubmit(event)">
                     <div class="form-group">
                         <label for="handlerName">Handler Name:</label>
                         <input type="text" id="handlerName" required>
                     </div>
-                    
                     <div class="form-group">
                         <label for="dogCallName">Dog's Call Name:</label>
                         <input type="text" id="dogCallName" required>
                     </div>
-                    
                     <div class="form-group">
                         <label for="dogRegNumber">Registration Number:</label>
                         <input type="text" id="dogRegNumber" required>
                     </div>
+                    
+                    <h4>Select Classes to Enter:</h4>
             `;
             
-            // Add class selection
-            html += '<h4>Select Classes to Enter:</h4>';
-            trial.classes.forEach((cls, index) => {
+            appData.currentTrial.classes.forEach((cls, index) => {
+                const judges = cls.rounds.map(r => r.judge).join(', ');
                 html += `
                     <div class="form-group">
                         <label>
                             <input type="checkbox" name="classes" value="${index}">
-                            ${cls.date} - ${cls.className} (Judge: ${cls.rounds.map(r => r.judge).join(', ')})
+                            ${cls.date} - ${cls.className} (Judge: ${judges})
                         </label>
                     </div>
                 `;
             });
             
             html += '<button type="submit">Submit Entry</button></form>';
-            
-            entryFormContent.innerHTML = html;
-            
-            // Handle entry submission
-            document.getElementById('trialEntryForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                const entry = {
-                    id: Date.now(),
-                    trialId: trial.id,
-                    handlerName: document.getElementById('handlerName').value,
-                    dogCallName: document.getElementById('dogCallName').value,
-                    dogRegNumber: document.getElementById('dogRegNumber').value,
-                    classes: Array.from(document.querySelectorAll('input[name="classes"]:checked')).map(cb => parseInt(cb.value)),
-                    timestamp: new Date()
-                };
-                
-                entries.push(entry);
-                alert('Entry submitted successfully!');
-                this.reset();
-            });
+            container.innerHTML = html;
         }
 
-        // Load running order
+        function handleEntrySubmit(event) {
+            event.preventDefault();
+            
+            const selectedClasses = Array.from(document.querySelectorAll('input[name="classes"]:checked'))
+                .map(cb => parseInt(cb.value));
+            
+            if (selectedClasses.length === 0) {
+                alert('Please select at least one class');
+                return;
+            }
+            
+            const entry = {
+                id: Date.now(),
+                trialId: appData.currentTrial.id,
+                handlerName: document.getElementById('handlerName').value,
+                dogCallName: document.getElementById('dogCallName').value,
+                dogRegNumber: document.getElementById('dogRegNumber').value,
+                classes: selectedClasses,
+                timestamp: new Date().toISOString()
+            };
+            
+            appData.entries.push(entry);
+            saveToStorage();
+            
+            alert('Entry submitted successfully!');
+            document.getElementById('trialEntryForm').reset();
+        }
+
+        function showEntryFormDirect(trialId) {
+            const trial = appData.trials.find(t => t.id == trialId);
+            if (trial) {
+                appData.currentTrial = trial;
+                document.getElementById('loginSection').classList.remove('active');
+                showSection('entryForm');
+                generateEntryForm();
+            }
+        }
+
+        // Running order
         function loadRunningOrder() {
-            if (!currentTrial) {
+            if (!appData.currentTrial) {
                 document.getElementById('runningOrderContent').innerHTML = '<p>Please select a trial first.</p>';
                 return;
             }
             
-            const content = document.getElementById('runningOrderContent');
-            let html = '<h3>Running Order for ' + currentTrial.name + '</h3>';
+            const container = document.getElementById('runningOrderContent');
+            const trialEntries = appData.entries.filter(e => e.trialId === appData.currentTrial.id);
+            
+            if (trialEntries.length === 0) {
+                container.innerHTML = '<p>No entries yet for this trial.</p>';
+                return;
+            }
             
             // Group entries by date, judge, class, round
-            const groupedEntries = {};
+            const groups = {};
             
-            entries.filter(e => e.trialId === currentTrial.id).forEach(entry => {
+            trialEntries.forEach(entry => {
                 entry.classes.forEach(classIndex => {
-                    const cls = currentTrial.classes[classIndex];
+                    const cls = appData.currentTrial.classes[classIndex];
                     cls.rounds.forEach(round => {
                         const key = `${cls.date}_${round.judge}_${cls.className}_Round${round.round}`;
-                        if (!groupedEntries[key]) {
-                            groupedEntries[key] = {
+                        if (!groups[key]) {
+                            groups[key] = {
                                 date: cls.date,
                                 judge: round.judge,
                                 className: cls.className,
@@ -758,26 +816,24 @@
                                 entries: []
                             };
                         }
-                        groupedEntries[key].entries.push({
-                            ...entry,
-                            key: key
-                        });
+                        groups[key].entries.push(entry);
                     });
                 });
             });
             
-            // Display grouped entries
-            Object.keys(groupedEntries).forEach(key => {
-                const group = groupedEntries[key];
+            let html = '<h3>Running Order</h3>';
+            
+            Object.keys(groups).sort().forEach(key => {
+                const group = groups[key];
                 html += `
                     <div class="round-config">
                         <h4>${group.date} - ${group.judge} - ${group.className} - Round ${group.round}</h4>
-                        <div id="runningOrder_${key}" class="running-order-list">
+                        <div id="order_${key}" data-key="${key}">
                 `;
                 
                 group.entries.forEach((entry, index) => {
                     html += `
-                        <div class="running-order-item" draggable="true" data-index="${index}" data-key="${key}">
+                        <div class="running-order-item" draggable="true" data-index="${index}">
                             <span>${index + 1}. ${entry.handlerName} - ${entry.dogCallName}</span>
                             <div class="arrow-buttons">
                                 <button onclick="moveEntry('${key}', ${index}, -1)">↑</button>
@@ -789,413 +845,41 @@
                 
                 html += `
                         </div>
-                        <button onclick="submitRunningOrder('${key}')">Submit Running Order for ${group.date}</button>
+                        <button onclick="submitRunningOrder('${key}')">Submit Running Order</button>
                     </div>
                 `;
             });
             
-            content.innerHTML = html;
-            
-            // Add drag and drop functionality
-            initializeDragAndDrop();
+            container.innerHTML = html;
+            initDragAndDrop();
         }
 
-        // Move entry in running order
         function moveEntry(key, index, direction) {
-            const groupedEntries = getGroupedEntries();
-            const entries = groupedEntries[key].entries;
+            const container = document.getElementById(`order_${key}`);
+            const items = Array.from(container.querySelectorAll('.running-order-item'));
             
-            if ((direction === -1 && index > 0) || (direction === 1 && index < entries.length - 1)) {
-                const temp = entries[index];
-                entries[index] = entries[index + direction];
-                entries[index + direction] = temp;
-                loadRunningOrder();
+            const newIndex = index + direction;
+            if (newIndex >= 0 && newIndex < items.length) {
+                const item = items[index];
+                const targetItem = items[newIndex];
+                
+                if (direction === -1) {
+                    container.insertBefore(item, targetItem);
+                } else {
+                    container.insertBefore(targetItem, item);
+                }
+                
+                updateOrderIndices(key);
             }
         }
 
-        // Initialize drag and drop
-        function initializeDragAndDrop() {
-            const items = document.querySelectorAll('.running-order-item');
-            let draggedItem = null;
+        function updateOrderIndices(key) {
+            const container = document.getElementById(`order_${key}`);
+            const items = container.querySelectorAll('.running-order-item');
             
-            items.forEach(item => {
-                item.addEventListener('dragstart', function(e) {
-                    draggedItem = this;
-                    this.classList.add('dragging');
-                });
-                
-                item.addEventListener('dragend', function(e) {
-                    this.classList.remove('dragging');
-                });
-                
-                item.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                });
-                
-                item.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    if (this !== draggedItem && this.dataset.key === draggedItem.dataset.key) {
-                        const list = this.parentNode;
-                        const allItems = [...list.querySelectorAll('.running-order-item')];
-                        const draggedIndex = parseInt(draggedItem.dataset.index);
-                        const targetIndex = parseInt(this.dataset.index);
-                        
-                        if (draggedIndex < targetIndex) {
-                            list.insertBefore(draggedItem, this.nextSibling);
-                        } else {
-                            list.insertBefore(draggedItem, this);
-                        }
-                        
-                        // Update indices
-                        updateRunningOrderIndices(this.dataset.key);
-                    }
-                });
-            });
-        }
-
-        // Update running order indices after drag and drop
-        function updateRunningOrderIndices(key) {
-            const list = document.getElementById(`runningOrder_${key}`);
-            const items = list.querySelectorAll('.running-order-item');
             items.forEach((item, index) => {
                 item.dataset.index = index;
-                item.querySelector('span').textContent = item.querySelector('span').textContent.replace(/^\d+\./, `${index + 1}.`);
-            });
-        }
-
-        // Get grouped entries
-        function getGroupedEntries() {
-            const groupedEntries = {};
-            
-            entries.filter(e => e.trialId === currentTrial.id).forEach(entry => {
-                entry.classes.forEach(classIndex => {
-                    const cls = currentTrial.classes[classIndex];
-                    cls.rounds.forEach(round => {
-                        const key = `${cls.date}_${round.judge}_${cls.className}_Round${round.round}`;
-                        if (!groupedEntries[key]) {
-                            groupedEntries[key] = {
-                                date: cls.date,
-                                judge: round.judge,
-                                className: cls.className,
-                                round: round.round,
-                                entries: []
-                            };
-                        }
-                        groupedEntries[key].entries.push({
-                            ...entry,
-                            key: key
-                        });
-                    });
-                });
+                const span = item.querySelector('span');
+                span.textContent = span.textContent.replace(/^\d+\./, `${index + 1}.`);
             });
             
-            return groupedEntries;
-        }
-
-        // Submit running order
-        function submitRunningOrder(key) {
-            const groupedEntries = getGroupedEntries();
-            const group = groupedEntries[key];
-            
-            // Generate score sheets
-            generateScoreSheets(group);
-            
-            alert(`Running order submitted for ${group.date}`);
-        }
-
-        // Generate score sheets
-        function generateScoreSheets(group) {
-            if (!currentTrial.scoreSheets) {
-                currentTrial.scoreSheets = {};
-            }
-            
-            currentTrial.scoreSheets[group.key] = {
-                date: group.date,
-                judge: group.judge,
-                className: group.className,
-                round: group.round,
-                entries: group.entries.map(entry => ({
-                    ...entry,
-                    scores: {
-                        scent1: false,
-                        scent2: false,
-                        scent3: false,
-                        scent4: false,
-                        fault1: '',
-                        fault2: '',
-                        time: '',
-                        pass: false
-                    }
-                }))
-            };
-        }
-
-        // Load results
-        function loadResults() {
-            if (!currentTrial || !currentTrial.scoreSheets) {
-                document.getElementById('resultsContent').innerHTML = '<p>No score sheets available yet.</p>';
-                return;
-            }
-            
-            let html = '<h3>Score Sheets</h3>';
-            
-            Object.keys(currentTrial.scoreSheets).forEach(key => {
-                const sheet = currentTrial.scoreSheets[key];
-                html += `
-                    <div class="round-config">
-                        <h4>${sheet.date} - ${sheet.judge} - ${sheet.className} - Round ${sheet.round}</h4>
-                        <button onclick="printScoreSheet('${key}')" class="no-print">Print Score Sheet</button>
-                        <table id="scoreSheet_${key}">
-                            <tr>
-                                <th>Team</th>
-                                <th>Dog - Handler</th>
-                                <th>Scent 1</th>
-                                <th>Scent 2</th>
-                                <th>Scent 3</th>
-                                <th>Scent 4</th>
-                                <th>Fault</th>
-                                <th>Fault</th>
-                                <th>Time</th>
-                                <th>Pass/Fail</th>
-                            </tr>
-                `;
-                
-                sheet.entries.forEach((entry, index) => {
-                    html += `
-                        <tr>
-                            <td>${index + 1}</td>
-                            <td>${entry.dogCallName} - ${entry.handlerName}</td>
-                            <td><input type="checkbox" id="scent1_${key}_${index}" ${entry.scores.scent1 ? 'checked' : ''}></td>
-                            <td><input type="checkbox" id="scent2_${key}_${index}" ${entry.scores.scent2 ? 'checked' : ''}></td>
-                            <td><input type="checkbox" id="scent3_${key}_${index}" ${entry.scores.scent3 ? 'checked' : ''}></td>
-                            <td><input type="checkbox" id="scent4_${key}_${index}" ${entry.scores.scent4 ? 'checked' : ''}></td>
-                            <td><input type="text" class="score-input" id="fault1_${key}_${index}" value="${entry.scores.fault1 || ''}"></td>
-                            <td><input type="text" class="score-input" id="fault2_${key}_${index}" value="${entry.scores.fault2 || ''}"></td>
-                            <td><input type="text" class="score-input" id="time_${key}_${index}" value="${entry.scores.time || ''}"></td>
-                            <td>
-                                <select id="pass_${key}_${index}">
-                                    <option value="false" ${!entry.scores.pass ? 'selected' : ''}>Fail</option>
-                                    <option value="true" ${entry.scores.pass ? 'selected' : ''}>Pass</option>
-                                </select>
-                            </td>
-                        </tr>
-                    `;
-                });
-                
-                html += `
-                        </table>
-                        <button onclick="saveScores('${key}')" class="no-print">Save Scores</button>
-                    </div>
-                `;
-            });
-            
-            html += '<button onclick="proceedToSummary()" class="no-print">Proceed to Summary</button>';
-            
-            document.getElementById('resultsContent').innerHTML = html;
-        }
-
-        // Print score sheet
-        function printScoreSheet(key) {
-            const sheet = currentTrial.scoreSheets[key];
-            const printWindow = window.open('', '_blank');
-            
-            const html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Score Sheet - ${sheet.className}</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; }
-                        h1, h2 { text-align: center; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        th, td { border: 1px solid black; padding: 8px; text-align: left; }
-                        th { background-color: #f0f0f0; }
-                        .checkbox { width: 20px; height: 20px; border: 1px solid black; display: inline-block; }
-                    </style>
-                </head>
-                <body>
-                    <h1>C-WAGS Scent Detective Master Score Sheet</h1>
-                    <h2>${sheet.className} - Round ${sheet.round}</h2>
-                    <p>Date: ${sheet.date} | Judge: ${sheet.judge}</p>
-                    
-                    <table>
-                        <tr>
-                            <th>Team</th>
-                            <th>Dog - Handler</th>
-                            <th>Scent 1</th>
-                            <th>Scent 2</th>
-                            <th>Scent 3</th>
-                            <th>Scent 4</th>
-                            <th>Fault</th>
-                            <th>Fault</th>
-                            <th>Time</th>
-                            <th>Pass/Fail</th>
-                        </tr>
-                        ${sheet.entries.map((entry, index) => `
-                            <tr>
-                                <td>${index + 1}</td>
-                                <td>${entry.dogCallName} - ${entry.handlerName}</td>
-                                <td><div class="checkbox"></div></td>
-                                <td><div class="checkbox"></div></td>
-                                <td><div class="checkbox"></div></td>
-                                <td><div class="checkbox"></div></td>
-                                <td style="width: 80px;"></td>
-                                <td style="width: 80px;"></td>
-                                <td style="width: 60px;"></td>
-                                <td style="width: 60px;"></td>
-                            </tr>
-                        `).join('')}
-                    </table>
-                    
-                    <p style="margin-top: 40px;">Judge's Signature: _________________________</p>
-                </body>
-                </html>
-            `;
-            
-            printWindow.document.write(html);
-            printWindow.document.close();
-            printWindow.print();
-        }
-
-        // Save scores
-        function saveScores(key) {
-            const sheet = currentTrial.scoreSheets[key];
-            
-            sheet.entries.forEach((entry, index) => {
-                entry.scores.scent1 = document.getElementById(`scent1_${key}_${index}`).checked;
-                entry.scores.scent2 = document.getElementById(`scent2_${key}_${index}`).checked;
-                entry.scores.scent3 = document.getElementById(`scent3_${key}_${index}`).checked;
-                entry.scores.scent4 = document.getElementById(`scent4_${key}_${index}`).checked;
-                entry.scores.fault1 = document.getElementById(`fault1_${key}_${index}`).value;
-                entry.scores.fault2 = document.getElementById(`fault2_${key}_${index}`).value;
-                entry.scores.time = document.getElementById(`time_${key}_${index}`).value;
-                entry.scores.pass = document.getElementById(`pass_${key}_${index}`).value === 'true';
-            });
-            
-            alert('Scores saved successfully!');
-        }
-
-        // Proceed to summary
-        function proceedToSummary() {
-            showSection('summary');
-        }
-
-        // Load summary
-        function loadSummary() {
-            if (!currentTrial || !currentTrial.scoreSheets) {
-                document.getElementById('summaryContent').innerHTML = '<p>No results available for summary.</p>';
-                return;
-            }
-            
-            let html = '<h3>Trial Summary</h3>';
-            
-            // Group by class
-            const classSummaries = {};
-            
-            Object.values(currentTrial.scoreSheets).forEach(sheet => {
-                if (!classSummaries[sheet.className]) {
-                    classSummaries[sheet.className] = {
-                        className: sheet.className,
-                        rounds: []
-                    };
-                }
-                classSummaries[sheet.className].rounds.push(sheet);
-            });
-            
-            // Generate summary for each class
-            Object.values(classSummaries).forEach(classSummary => {
-                html += `
-                    <div class="league-summary">
-                        <h4>${classSummary.className}</h4>
-                        <table>
-                            <tr>
-                                <th>Registration Number</th>
-                                <th>Dog's Call Name</th>
-                                <th>Handler</th>
-                `;
-                
-                // Add columns for each round
-                classSummary.rounds.forEach(round => {
-                    html += `<th>${round.date}<br>${round.judge}<br>Round ${round.round}</th>`;
-                });
-                
-                html += '</tr>';
-                
-                // Get unique entries
-                const uniqueEntries = new Map();
-                classSummary.rounds.forEach(round => {
-                    round.entries.forEach(entry => {
-                        if (!uniqueEntries.has(entry.dogRegNumber)) {
-                            uniqueEntries.set(entry.dogRegNumber, {
-                                dogRegNumber: entry.dogRegNumber,
-                                dogCallName: entry.dogCallName,
-                                handlerName: entry.handlerName,
-                                results: {}
-                            });
-                        }
-                        const key = `${round.date}_${round.judge}_${round.round}`;
-                        uniqueEntries.get(entry.dogRegNumber).results[key] = entry.scores.pass ? 'Pass' : 'Fail';
-                    });
-                });
-                
-                // Display entries
-                uniqueEntries.forEach(entry => {
-                    html += `
-                        <tr>
-                            <td>${entry.dogRegNumber}</td>
-                            <td>${entry.dogCallName}</td>
-                            <td>${entry.handlerName}</td>
-                    `;
-                    
-                    classSummary.rounds.forEach(round => {
-                        const key = `${round.date}_${round.judge}_${round.round}`;
-                        html += `<td>${entry.results[key] || 'XX'}</td>`;
-                    });
-                    
-                    html += '</tr>';
-                });
-                
-                html += '</table></div>';
-            });
-            
-            html += '<button onclick="printSummary()" class="no-print">Print Summary</button>';
-            
-            document.getElementById('summaryContent').innerHTML = html;
-        }
-
-        // Print summary
-        function printSummary() {
-            window.print();
-        }
-
-        // View trial
-        function viewTrial(index) {
-            currentTrial = trials[index];
-            showSection('entryForm');
-            generateEntryForm(currentTrial);
-        }
-
-        // Edit trial
-        function editTrial(index) {
-            currentTrial = trials[index];
-            showSection('createTrial');
-            // Populate form with existing trial data
-            // This would require additional implementation
-        }
-
-        // Check for entry link on page load
-        window.addEventListener('load', function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const entryId = urlParams.get('entry');
-            
-            if (entryId) {
-                // Show entry form directly
-                const trial = trials.find(t => t.id == entryId);
-                if (trial) {
-                    currentTrial = trial;
-                    document.getElementById('loginSection').style.display = 'none';
-                    showSection('entryForm');
-                    generateEntryForm(trial);
-                }
-            }
-        });
