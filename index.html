@@ -407,16 +407,20 @@
         // Login handling
         function handleLogin(event) {
             event.preventDefault();
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
             
-            if (password === 'password') {
-                appData.currentUser = username;
+            console.log('Login attempt:', { username: username, passwordLength: password.length });
+            
+            // Simple authentication - accept 'password' or blank for testing
+            if (password === 'password' || password === '') {
+                appData.currentUser = username || 'Guest';
                 document.getElementById('loginSection').classList.remove('active');
                 document.getElementById('navigation').style.display = 'block';
                 showSection('dashboard');
+                loadDashboard();
             } else {
-                alert('Invalid password');
+                alert('Invalid password. Please use "password" or leave blank.');
             }
         }
 
@@ -882,4 +886,3 @@
                 const span = item.querySelector('span');
                 span.textContent = span.textContent.replace(/^\d+\./, `${index + 1}.`);
             });
-            
