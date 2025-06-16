@@ -1,903 +1,2422 @@
-<!DOCTYPE html>
+<script>
+        // Global variables
+        var currentUser = null;
+        var currentTrialId = null;
+        var dogData = [];
+        var availableClasses = [];
+        var availableJudges = [];
+        var trialConfig = [];
+        var entryResults = [];
+        var runningOrders = {}; // Store custom running orders
+        var digitalScores = {}; // Store digital scores
+        var totalDays = 0;
+        var savedDays = 0;
+
+        // Load JSON data automatically on page load
+        function loadDogData() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', './data.json', true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        try {
+                            var data = JSON.parse(xhr.responseText);
+                            
+                            if (Array.isArray(data) && data.length > 0) {
+                                dogData = data;
+                                availableClasses = getUniqueValues(data, 'className', 'class');
+                                availableJudges = getUniqueValues(data, 'judge');
+                                console.log('Dog data loaded successfully:', dogData.length, 'records');
+                                showStatusMessage('Dog data loaded successfully!', 'success');
+                            } else {
+                                console.warn('JSON file appears to be empty or invalid format');
+                                loadFallbackData();
+                            }
+                        } catch (error) {
+                            console.error('Error parsing JSON data:', error);
+                            loadFallbackData();
+                        }
+                    } else {
+                        console.error('Could not load data.json');
+                        loadFallbackData();
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        function getUniqueValues(data, field1, field2) {
+            var values = [];
+            for (var i = 0; i < data.length; i++) {
+                var value = data[i][field1] || data[i][field2];
+                if (value && values.indexOf(value) === -1) {
+                    values.push(value);
+                }
+            }
+            return values;
+        }
+
+        function loadFallbackData() {
+            dogData = [
+                { regNumber: "12345", callName: "Buddy" },
+                { regNumber: "67890", callName: "Luna" },
+                { regNumber: "11111", callName: "Max" },
+                { regNumber: "22222", callName: "Bella" }
+            ];
+            availableClasses = ["Novice A", "Novice B", "Open A", "Open B", "Utility A", "Utility B"];
+            availableJudges = ["Judge Smith", "Judge Johnson", "Judge Williams", "Judge Brown", "Judge Davis"];
+            showStatusMessage('Using default data - could not load data.json', 'warning');
+        }
+
+        // Authentication functions
+        function showAuthTab(tab, element) {
+            var tabs = document.querySelectorAll('.auth-tab');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+            element.classList.add('active');
+            
+            var forms = document.querySelectorAll('.auth-form');
+            for (var i = 0; i < forms.length; i++) {
+                forms[i].classList.remove('active');
+            }
+            document.getElementById(tab + 'Form').classList.add('active');
+        }
+
+        function handleLogin(event) {
+            event.preventDefault();
+            
+            var username = document.getElementById('loginUsername').value;
+            var password = document.getElementById('loginPassword').value;
+            var users = JSON.parse(localStorage.getItem('trialUsers') || '{}');
+            
+            if (users[username] && users[username].password === password) {
+                currentUser = users[username];
+                showMainApp();
+                loadUserTrials();
+            } else {
+                alert('Invalid username or password');
+            }
+        }
+
+        function handleRegister(event) {
+            event.preventDefault();
+            
+            var username = document.getElementById('regUsername').value;
+            var password = document.getElementById('regPassword').value;
+            var confirmPassword = document.getElementById('regConfirmPassword').value;
+            var fullName = document.getElementById('regFullName').value;
+            var email = document.getElementById('regEmail').value;
+            
+            if (password !== confirmPassword) {
+                alert('Passwords do not match');
+                return;
+            }
+            
+            var users = JSON.parse(localStorage.getItem('trialUsers') || '{}');
+            
+            if (users[username]) {
+                alert('Username already exists');
+                return;
+            }
+            
+            users[username] = {
+                username: username,
+                password: password,
+                fullName: fullName,
+                email: email,
+                created: new Date().toISOString()
+            };
+            
+            localStorage.setItem('trialUsers', JSON.stringify(users));
+            alert('Registration successful! Please login.');
+            showAuthTab('login', document.querySelector('.auth-tab'));
+        }
+
+        function showMainApp() {
+            document.getElementById('authOverlay').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+            document.getElementById('userInfo').textContent = 'Welcome, ' + currentUser.fullName;
+        }
+
+        function logout() {
+            currentUser = null;
+            currentTrialId = null;
+            document.getElementById('authOverlay').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+            
+            var inputs = document.querySelectorAll('input');
+            for (var i = 0; i < inputs.length; i++) {
+                inputs[i].value = '';
+            }
+        }
+
+        // Trial management functions
+        function loadUserTrials() {
+            var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
+            var container = document.getElementById('myTrialsList');
+            
+            if (Object.keys(userTrials).length === 0) {
+                container.innerHTML = '<p style="color: #666; font-style: italic;">No trials yet. Create your first trial!</p>';
+                return;
+            }
+            
+            var html = '';
+            for (var trialId in userTrials) {
+                if (userTrials.hasOwnProperty(trialId)) {
+                    var trial = userTrials[trialId];
+                    var created = new Date(trial.created).toLocaleDateString();
+                    var days = trial.config ? getUniqueDays(trial.config).length : 0;
+                    
+                    // Get current entry count by syncing with public storage
+                    var publicTrials = JSON.parse(localStorage.getItem('publicTrials') || '{}');
+                    var userEntries = trial.results || [];
+                    var publicEntries = (publicTrials[trialId] && publicTrials[trialId].results) ? publicTrials[trialId].results : [];
+                    var totalEntries = mergeEntries(userEntries, publicEntries).length;
+                    
+                    var trialName = trial.name || 'Untitled Trial';
+                    var trialStatus = (trial.config && trial.config.length > 0) ? 'Configured' : 'Setup Incomplete';
+                    var statusColor = (trial.config && trial.config.length > 0) ? '#28a745' : '#ffc107';
+                    
+                    html += '<div class="trial-item">' +
+                        '<div class="trial-info">' +
+                        '<div class="trial-name">' + trialName + '</div>' +
+                        '<div class="trial-meta">Created: ' + created + ' | Days: ' + days + ' | Entries: ' + totalEntries + '</div>' +
+                        '<div class="trial-status" style="color: ' + statusColor + '; font-size: 12px; font-weight: bold;">' + trialStatus + '</div>' +
+                        '</div>' +
+                        '<div class="trial-actions">' +
+                        '<button class="edit-btn" onclick="editTrial(\'' + trialId + '\')">Edit</button>';
+                    
+                    // Add Copy Link button if trial is configured
+                    if (trial.config && trial.config.length > 0) {
+                        html += '<button class="edit-btn" onclick="copyTrialLink(\'' + trialId + '\')" style="background: #17a2b8;">Copy Link</button>';
+                    }
+                    
+                    html += '<button class="delete-btn" onclick="deleteTrial(\'' + trialId + '\')">Delete</button>' +
+                        '</div>' +
+                        '</div>';
+                }
+            }
+            container.innerHTML = html;
+        }
+
+        function copyTrialLink(trialId) {
+            var baseURL = window.location.origin + window.location.pathname;
+            var shareableURL = baseURL + '?trial=' + trialId + '&mode=entry';
+            
+            // Create temporary input to copy text
+            var tempInput = document.createElement('input');
+            tempInput.value = shareableURL;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            tempInput.setSelectionRange(0, 99999);
+            
+            try {
+                document.execCommand('copy');
+                showStatusMessage('Entry form link copied to clipboard!', 'success');
+            } catch (err) {
+                showStatusMessage('Could not copy link. URL: ' + shareableURL, 'warning');
+            }
+            
+            document.body.removeChild(tempInput);
+        }
+
+        function getUniqueDays(config) {
+            var days = [];
+            for (var i = 0; i < config.length; i++) {
+                if (days.indexOf(config[i].day) === -1) {
+                    days.push(config[i].day);
+                }
+            }
+            return days;
+        }
+
+        function createNewTrial() {
+            currentTrialId = 'trial_' + Date.now();
+            document.getElementById('trialTitle').textContent = 'New Trial Setup';
+            document.getElementById('trialName').value = '';
+            document.getElementById('trialDays').value = '';
+            document.getElementById('daysContainer').innerHTML = '';
+            trialConfig = [];
+            entryResults = [];
+            runningOrders = {};
+            digitalScores = {};
+            updateTrialOptions();
+            updateResultsDisplay();
+            updateCrossReferenceDisplay();
+            showTab('setup', document.querySelector('.nav-tab'));
+        }
+
+        function editTrial(trialId) {
+            var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
+            var trial = userTrials[trialId];
+            
+            if (!trial) {
+                alert('Trial not found');
+                return;
+            }
+            
+            currentTrialId = trialId;
+            document.getElementById('trialTitle').textContent = 'Editing: ' + (trial.name || 'Untitled Trial');
+            document.getElementById('trialName').value = trial.name || '';
+            
+            trialConfig = trial.config || [];
+            runningOrders = trial.runningOrders || {};
+            digitalScores = trial.digitalScores || {};
+            
+            // Load entries from both user storage and public storage, then merge
+            var userEntries = trial.results || [];
+            var publicTrials = JSON.parse(localStorage.getItem('publicTrials') || '{}');
+            var publicEntries = (publicTrials[trialId] && publicTrials[trialId].results) ? publicTrials[trialId].results : [];
+            
+            // Merge entries and remove duplicates based on timestamp
+            entryResults = mergeEntries(userEntries, publicEntries);
+            
+            // Save merged entries back to user storage
+            userTrials[trialId].results = entryResults;
+            localStorage.setItem('trials_' + currentUser.username, JSON.stringify(userTrials));
+            
+            if (trialConfig.length > 0) {
+                var maxDay = getMaxDay(trialConfig);
+                document.getElementById('trialDays').value = maxDay;
+                generateDays();
+                
+                setTimeout(function() {
+                    populateExistingTrialData();
+                }, 100);
+            }
+            
+            updateTrialOptions();
+            updateResultsDisplay();
+            updateCrossReferenceDisplay();
+            showTab('setup', document.querySelector('.nav-tab'));
+        }
+
+        function mergeEntries(userEntries, publicEntries) {
+            var merged = [];
+            var timestamps = {};
+            
+            // Add user entries first
+            for (var i = 0; i < userEntries.length; i++) {
+                merged.push(userEntries[i]);
+                timestamps[userEntries[i].timestamp] = true;
+            }
+            
+            // Add public entries that don't already exist
+            for (var i = 0; i < publicEntries.length; i++) {
+                if (!timestamps[publicEntries[i].timestamp]) {
+                    merged.push(publicEntries[i]);
+                    timestamps[publicEntries[i].timestamp] = true;
+                }
+            }
+            
+            return merged;
+        }
+
+        function getMaxDay(config) {
+            var max = 0;
+            for (var i = 0; i < config.length; i++) {
+                if (config[i].day > max) {
+                    max = config[i].day;
+                }
+            }
+            return max;
+        }
+
+        function populateExistingTrialData() {
+            for (var i = 0; i < trialConfig.length; i++) {
+                var config = trialConfig[i];
+                var dayNum = config.day;
+                var dateInput = document.getElementById('date_' + dayNum);
+                if (dateInput) {
+                    dateInput.value = config.date;
+                }
+                
+                var classInput = document.getElementById('class_' + dayNum + '_' + config.classNum);
+                if (classInput) {
+                    classInput.value = config.className;
+                }
+                
+                var judgeInput = document.getElementById('judge_' + dayNum + '_' + config.classNum + '_' + config.roundNum);
+                if (judgeInput) {
+                    judgeInput.value = config.judge;
+                }
+                
+                var feoInput = document.getElementById('feo_' + dayNum + '_' + config.classNum + '_' + config.roundNum);
+                if (feoInput) {
+                    feoInput.checked = config.feoOffered || false;
+                }
+            }
+        }
+
+        function deleteTrial(trialId) {
+            if (confirm('Are you sure you want to delete this trial? This action cannot be undone.')) {
+                var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
+                delete userTrials[trialId];
+                localStorage.setItem('trials_' + currentUser.username, JSON.stringify(userTrials));
+                loadUserTrials();
+            }
+        }
+
+        function saveTrialData() {
+            if (!currentUser) {
+                alert("Please log in first.");
+                return;
+            }
+            
+            if (!currentTrialId) {
+                alert("Please create a new trial first.");
+                return;
+            }
+            
+            var trialName = document.getElementById('trialName').value.trim();
+            if (!trialName) {
+                alert("Please enter a trial name.");
+                return;
+            }
+
+            if (trialConfig.length === 0) {
+                alert("Please configure at least one day before saving the trial.");
+                return;
+            }
+            
+            var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
+            
+            var trialData = {
+                name: trialName,
+                config: trialConfig,
+                results: entryResults,
+                runningOrders: runningOrders,
+                digitalScores: digitalScores,
+                owner: currentUser.username,
+                created: userTrials[currentTrialId] && userTrials[currentTrialId].created ? userTrials[currentTrialId].created : new Date().toISOString(),
+                updated: new Date().toISOString()
+            };
+            
+            userTrials[currentTrialId] = trialData;
+            localStorage.setItem('trials_' + currentUser.username, JSON.stringify(userTrials));
+            
+            var publicTrials = JSON.parse(localStorage.getItem('publicTrials') || '{}');
+            publicTrials[currentTrialId] = trialData;
+            localStorage.setItem('publicTrials', JSON.stringify(publicTrials));
+            
+            generateShareableURL();
+            document.getElementById('entryFormLink').style.display = 'block';
+            showStatusMessage("Trial saved successfully!", "success");
+            loadUserTrials();
+        }
+
+        // Tab functions
+        function showTab(tabName, element) {
+            var tabs = document.querySelectorAll('.nav-tab');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+            if (element) {
+                element.classList.add('active');
+            }
+            
+            var contents = document.querySelectorAll('.tab-content');
+            for (var i = 0; i < contents.length; i++) {
+                contents[i].classList.remove('active');
+            }
+            document.getElementById(tabName).classList.add('active');
+            
+            // If switching to Results tab, sync entries from public storage
+            if (tabName === 'results' && currentTrialId && currentUser) {
+                syncEntriesFromPublic();
+            }
+            
+            // If switching to Cross-Reference tab, load the grid
+            if (tabName === 'cross-reference' && currentTrialId) {
+                loadCrossReferenceTab();
+            }
+            
+            // If switching to Running Order tab, load running orders
+            if (tabName === 'running-order' && currentTrialId) {
+                loadRunningOrderManagement();
+            }
+            
+            // If switching to Score Sheets tab, load date selection
+            if (tabName === 'score-sheets' && currentTrialId) {
+                loadScoreSheetsManagement();
+            }
+            
+            // If switching to Score Entry tab, load digital scoring
+            if (tabName === 'score-entry' && currentTrialId) {
+                loadDigitalScoreEntry();
+            }
+        }
+
+        function syncEntriesFromPublic() {
+            if (!currentTrialId || !currentUser) return;
+            
+            var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
+            var publicTrials = JSON.parse(localStorage.getItem('publicTrials') || '{}');
+            
+            if (userTrials[currentTrialId] && publicTrials[currentTrialId]) {
+                var userEntries = userTrials[currentTrialId].results || [];
+                var publicEntries = publicTrials[currentTrialId].results || [];
+                
+                // Merge entries
+                entryResults = mergeEntries(userEntries, publicEntries);
+                
+                // Save back to user storage
+                userTrials[currentTrialId].results = entryResults;
+                userTrials[currentTrialId].updated = new Date().toISOString();
+                localStorage.setItem('trials_' + currentUser.username, JSON.stringify(userTrials));
+                
+                // Update display
+                updateResultsDisplay();
+                updateCrossReferenceDisplay();
+                
+                // Update trial count in dashboard
+                loadUserTrials();
+            }
+        }
+
+        // Cross-Reference Grid Functions
+        function loadCrossReferenceTab() {
+            if (trialConfig.length === 0) {
+                document.getElementById('crossReferenceGrid').innerHTML = 
+                    '<p style="text-align: center; color: #666; padding: 40px;">No trial data available. Please complete trial setup first.</p>';
+                return;
+            }
+            
+            populateFilterOptions();
+            updateCrossReferenceDisplay();
+        }
+
+        function populateFilterOptions() {
+            // Populate date filter
+            var dateFilter = document.getElementById('filterDate');
+            var dates = [];
+            for (var i = 0; i < trialConfig.length; i++) {
+                if (dates.indexOf(trialConfig[i].date) === -1) {
+                    dates.push(trialConfig[i].date);
+                }
+            }
+            dates.sort();
+            
+            dateFilter.innerHTML = '<option value="">All Dates</option>';
+            for (var i = 0; i < dates.length; i++) {
+                dateFilter.innerHTML += '<option value="' + dates[i] + '">' + dates[i] + '</option>';
+            }
+            
+            // Populate class filter
+            var classFilter = document.getElementById('filterClass');
+            var classes = [];
+            for (var i = 0; i < trialConfig.length; i++) {
+                if (classes.indexOf(trialConfig[i].className) === -1) {
+                    classes.push(trialConfig[i].className);
+                }
+            }
+            classes.sort();
+            
+            classFilter.innerHTML = '<option value="">All Classes</option>';
+            for (var i = 0; i < classes.length; i++) {
+                classFilter.innerHTML += '<option value="' + classes[i] + '">' + classes[i] + '</option>';
+            }
+        }
+
+        function updateCrossReferenceDisplay() {
+            if (trialConfig.length === 0) return;
+            
+            var filteredEntries = getFilteredEntries();
+            var gridHTML = generateCrossReferenceGrid(filteredEntries);
+            document.getElementById('crossReferenceGrid').innerHTML = gridHTML;
+            
+            // Update entry count
+            document.getElementById('gridEntryCount').textContent = filteredEntries.length + ' entries displayed';
+        }
+
+        function getFilteredEntries() {
+            var filtered = [];
+            var regFilter = document.getElementById('filterReg').value.toLowerCase();
+            var handlerFilter = document.getElementById('filterHandler').value.toLowerCase();
+            var dateFilter = document.getElementById('filterDate').value;
+            var classFilter = document.getElementById('filterClass').value;
+            var entryTypeFilter = document.getElementById('filterEntryType').value;
+            var scoredFilter = document.getElementById('filterScored').value;
+            
+            for (var i = 0; i < entryResults.length; i++) {
+                var entry = entryResults[i];
+                
+                // Apply filters
+                if (regFilter && entry.regNumber.toLowerCase().indexOf(regFilter) === -1) continue;
+                if (handlerFilter && entry.handler.toLowerCase().indexOf(handlerFilter) === -1) continue;
+                if (dateFilter && entry.date !== dateFilter) continue;
+                if (classFilter && entry.className !== classFilter) continue;
+                if (entryTypeFilter && entry.entryType !== entryTypeFilter) continue;
+                
+                // Apply scored filter
+                if (scoredFilter) {
+                    var scoreKey = entry.date + '|' + entry.className + '|' + entry.round + '|' + entry.regNumber + '|' + entry.entryType;
+                    var hasScore = digitalScores[scoreKey] && (digitalScores[scoreKey].score !== '' || digitalScores[scoreKey].placement !== '');
+                    
+                    if (scoredFilter === 'scored' && !hasScore) continue;
+                    if (scoredFilter === 'unscored' && hasScore) continue;
+                }
+                
+                filtered.push(entry);
+            }
+            
+            return filtered;
+        }
+
+        function generateCrossReferenceGrid(entries) {
+            if (entries.length === 0) {
+                return '<p style="text-align: center; color: #666; padding: 40px;">No entries match the current filters.</p>';
+            }
+            
+            // Group entries by dog
+            var dogGroups = {};
+            for (var i = 0; i < entries.length; i++) {
+                var entry = entries[i];
+                var dogKey = entry.regNumber + '|' + entry.callName + '|' + entry.handler;
+                if (!dogGroups[dogKey]) {
+                    dogGroups[dogKey] = {
+                        regNumber: entry.regNumber,
+                        callName: entry.callName,
+                        handler: entry.handler,
+                        entries: []
+                    };
+                }
+                dogGroups[dogKey].entries.push(entry);
+            }
+            
+            // Create column structure (Date > Class > Round combinations)
+            var columns = [];
+            var columnMap = {};
+            
+            for (var i = 0; i < trialConfig.length; i++) {
+                var config = trialConfig[i];
+                var colKey = config.date + '|' + config.className + '|' + config.roundNum;
+                if (!columnMap[colKey]) {
+                    columnMap[colKey] = {
+                        date: config.date,
+                        className: config.className,
+                        roundNum: config.roundNum,
+                        judge: config.judge,
+                        feoOffered: config.feoOffered
+                    };
+                    columns.push(columnMap[colKey]);
+                }
+            }
+            
+            // Sort columns by date, then class, then round
+            columns.sort(function(a, b) {
+                if (a.date !== b.date) return new Date(a.date) - new Date(b.date);
+                if (a.className !== b.className) return a.className.localeCompare(b.className);
+                return a.roundNum - b.roundNum;
+            });
+            
+            var html = '<table class="grid-table">';
+            
+            // Generate header rows
+            html += generateGridHeaders(columns);
+            
+            // Generate data rows
+            var sortedDogs = Object.keys(dogGroups).sort(function(a, b) {
+                return dogGroups[a].regNumber.localeCompare(dogGroups[b].regNumber);
+            });
+            
+            for (var d = 0; d < sortedDogs.length; d++) {
+                var dogKey = sortedDogs[d];
+                var dog = dogGroups[dogKey];
+                html += generateGridDataRow(dog, columns);
+            }
+            
+            html += '</table>';
+            return html;
+        }
+
+        function generateGridHeaders(columns) {
+            var html = '';
+            
+            // Create grouped headers for dates
+            var dateGroups = {};
+            var classGroups = {};
+            
+            for (var i = 0; i < columns.length; i++) {
+                var col = columns[i];
+                var dateKey = col.date;
+                var classKey = col.date + '|' + col.className;
+                
+                if (!dateGroups[dateKey]) {
+                    dateGroups[dateKey] = [];
+                }
+                if (!classGroups[classKey]) {
+                    classGroups[classKey] = [];
+                }
+                
+                dateGroups[dateKey].push(col);
+                classGroups[classKey].push(col);
+            }
+            
+            // Date header row
+            html += '<tr>';
+            html += '<th rowspan="3" class="dog-info">Reg #</th>';
+            html += '<th rowspan="3" class="handler-info">Handler</th>';
+            
+            for (var dateKey in dateGroups) {
+                var dateGroup = dateGroups[dateKey];
+                html += '<th colspan="' + dateGroup.length + '" class="date-header-group">' + dateKey + '</th>';
+            }
+            html += '</tr>';
+            
+            // Class header row
+            html += '<tr>';
+            for (var classKey in classGroups) {
+                var classGroup = classGroups[classKey];
+                var className = classKey.split('|')[1];
+                html += '<th colspan="' + classGroup.length + '" class="class-header-group">' + className + '</th>';
+            }
+            html += '</tr>';
+            
+            // Round/Judge header row
+            html += '<tr>';
+            for (var i = 0; i < columns.length; i++) {
+                var col = columns[i];
+                html += '<th class="judge-header">R' + col.roundNum + '<br>' + col.judge + '</th>';
+            }
+            html += '</tr>';
+            
+            return html;
+        }
+
+        function generateGridDataRow(dog, columns) {
+            var html = '<tr>';
+            
+            // Dog info columns
+            html += '<td class="dog-info">' + dog.regNumber + '<br><small>' + dog.callName + '</small></td>';
+            html += '<td class="handler-info">' + dog.handler + '</td>';
+            
+            // Entry columns
+            for (var i = 0; i < columns.length; i++) {
+                var col = columns[i];
+                html += '<td class="entry-cell">';
+                
+                // Find entries for this dog in this column
+                var regularEntry = null;
+                var feoEntry = null;
+                
+                for (var j = 0; j < dog.entries.length; j++) {
+                    var entry = dog.entries[j];
+                    if (entry.date === col.date && 
+                        entry.className === col.className && 
+                        entry.round == col.roundNum) {
+                        if (entry.entryType === 'regular') {
+                            regularEntry = entry;
+                        } else if (entry.entryType === 'feo') {
+                            feoEntry = entry;
+                        }
+                    }
+                }
+                
+                // Generate entry markers
+                var autoPopulate = document.getElementById('autoPopulateScores').checked;
+                var showRunningOrder = document.getElementById('showRunningOrder').checked;
+                var highlightConflicts = document.getElementById('highlightConflicts').checked;
+                
+                if (regularEntry && feoEntry) {
+                    html += '<span class="entry-marker marker-both">B</span>';
+                } else if (regularEntry) {
+                    var marker = 'R';
+                    var markerClass = 'marker-regular';
+                    
+                    // Check for scores if auto-populate is enabled
+                    if (autoPopulate) {
+                        var scoreKey = regularEntry.date + '|' + regularEntry.className + '|' + regularEntry.round + '|' + regularEntry.regNumber + '|regular';
+                        if (digitalScores[scoreKey] && (digitalScores[scoreKey].score !== '' || digitalScores[scoreKey].placement !== '')) {
+                            marker = '✓';
+                            markerClass = 'marker-scored';
+                        }
+                    }
+                    
+                    html += '<span class="entry-marker ' + markerClass + '">' + marker + '</span>';
+                } else if (feoEntry) {
+                    var marker = 'F';
+                    var markerClass = 'marker-feo';
+                    
+                    // Check for scores if auto-populate is enabled
+                    if (autoPopulate) {
+                        var scoreKey = feoEntry.date + '|' + feoEntry.className + '|' + feoEntry.round + '|' + feoEntry.regNumber + '|feo';
+                        if (digitalScores[scoreKey] && (digitalScores[scoreKey].score !== '' || digitalScores[scoreKey].placement !== '')) {
+                            marker = '✓';
+                            markerClass = 'marker-scored';
+                        }
+                    }
+                    
+                    html += '<span class="entry-marker ' + markerClass + '">' + marker + '</span>';
+                }
+                
+                // Add running order number if enabled
+                if (showRunningOrder && (regularEntry || feoEntry)) {
+                    var entry = regularEntry || feoEntry;
+                    var orderKey = entry.date + '|' + entry.className + '|' + entry.round;
+                    if (runningOrders[orderKey]) {
+                        var order = runningOrders[orderKey];
+                        for (var k = 0; k < order.length; k++) {
+                            if (order[k].regNumber === entry.regNumber && order[k].entryType === entry.entryType) {
+                                html += '<br><small>' + (k + 1) + '</small>';
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                html += '</td>';
+            }
+            
+            html += '</tr>';
+            return html;
+        }
+
+        function applyFilters() {
+            updateCrossReferenceDisplay();
+        }
+
+        function clearFilters() {
+            document.getElementById('filterReg').value = '';
+            document.getElementById('filterHandler').value = '';
+            document.getElementById('filterDate').value = '';
+            document.getElementById('filterClass').value = '';
+            document.getElementById('filterEntryType').value = '';
+            document.getElementById('filterScored').value = '';
+            updateCrossReferenceDisplay();
+        }
+
+        function refreshCrossReference() {
+            if (currentTrialId && currentUser) {
+                syncEntriesFromPublic();
+            }
+            updateCrossReferenceDisplay();
+            showStatusMessage('Cross-reference grid refreshed!', 'success');
+        }
+
+        function exportCrossReference() {
+            var filteredEntries = getFilteredEntries();
+            if (filteredEntries.length === 0) {
+                alert('No entries to export');
+                return;
+            }
+            
+            var csv = 'Registration,Call Name,Handler,Date,Class,Round,Judge,Entry Type,Score,Placement,Running Order\n';
+            
+            for (var i = 0; i < filteredEntries.length; i++) {
+                var entry = filteredEntries[i];
+                
+                // Get score and placement
+                var scoreKey = entry.date + '|' + entry.className + '|' + entry.round + '|' + entry.regNumber + '|' + entry.entryType;
+                var score = '';
+                var placement = '';
+                
+                if (digitalScores[scoreKey]) {
+                    score = digitalScores[scoreKey].score || '';
+                    placement = digitalScores[scoreKey].placement || '';
+                }
+                
+                // Get running order
+                var runningOrderPos = '';
+                var orderKey = entry.date + '|' + entry.className + '|' + entry.round;
+                if (runningOrders[orderKey]) {
+                    var order = runningOrders[orderKey];
+                    for (var j = 0; j < order.length; j++) {
+                        if (order[j].regNumber === entry.regNumber && order[j].entryType === entry.entryType) {
+                            runningOrderPos = j + 1;
+                            break;
+                        }
+                    }
+                }
+                
+                csv += entry.regNumber + ',' + entry.callName + ',' + entry.handler + ',' + entry.date + ',' + 
+                       entry.className + ',' + entry.round + ',' + entry.judge + ',' + entry.entryType + ',' + 
+                       score + ',' + placement + ',' + runningOrderPos + '\n';
+            }
+            
+            downloadFile(csv, 'cross_reference_grid.csv', 'text/csv');
+            showStatusMessage('Cross-reference grid exported successfully!', 'success');
+        }
+
+        // Continue with remaining functions...
+        // [The script would continue with all the existing functions for trial setup, entry forms, results, running orders, score sheets, score entry, etc.]
+
+        // Trial setup functions
+        function generateDays() {
+            var numDays = parseInt(document.getElementById('trialDays').value);
+            if (!numDays || numDays < 1) {
+                alert('Please enter a valid number of days');
+                return;
+            }
+
+            totalDays = numDays;
+            savedDays = 0;
+            var container = document.getElementById('daysContainer');
+            container.innerHTML = '';
+
+            for (var i = 1; i <= numDays; i++) {
+                createDaySection(i, container);
+            }
+        }
+
+        function createDaySection(dayNum, container) {
+            var dayDiv = document.createElement('div');
+            dayDiv.className = 'day-container';
+            dayDiv.innerHTML = '<div class="day-header">Day ' + dayNum + '</div>' +
+                '<div class="form-group">' +
+                '<span class="label">Date for Day ' + dayNum + ':</span>' +
+                '<input type="date" id="date_' + dayNum + '">' +
+                '</div>' +
+                '<div class="classes-section<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>C-WAGS Trial Management System</title>
+    <title>Trial Management System</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
             font-family: Arial, sans-serif;
-            background: #f5f5f5;
-            color: #333;
+            margin: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
         }
-
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
         }
-
         .header {
-            background: #2c3e50;
-            color: white;
-            padding: 20px;
             text-align: center;
             margin-bottom: 30px;
+            color: #333;
         }
-
-        .nav {
-            background: #34495e;
-            padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            display: none;
+        .header h1 {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5em;
+            margin-bottom: 10px;
         }
-
-        .nav button {
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            margin: 5px;
-            border-radius: 3px;
-            cursor: pointer;
+        
+        /* Login/Register Modal Styles */
+        .auth-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
         }
-
-        .nav button:hover {
-            background: #2980b9;
-        }
-
-        .nav button.active {
-            background: #e74c3c;
-        }
-
-        .section {
+        .auth-modal {
             background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 30px;
+        }
+        .auth-tab {
+            flex: 1;
+            padding: 12px;
+            background: #f0f0f0;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .auth-tab.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+        .auth-tab:first-child {
+            border-radius: 8px 0 0 8px;
+        }
+        .auth-tab:last-child {
+            border-radius: 0 8px 8px 0;
+        }
+        .auth-form {
             display: none;
         }
-
-        .section.active {
+        .auth-form.active {
             display: block;
         }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-
-        input[type="text"],
-        input[type="password"],
-        input[type="date"],
-        input[type="number"],
-        select,
-        textarea {
+        .auth-input {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            box-sizing: border-box;
             font-size: 16px;
         }
-
-        input[type="checkbox"] {
-            margin-right: 10px;
+        .auth-input:focus {
+            border-color: #667eea;
+            outline: none;
         }
-
-        button {
-            background: #27ae60;
+        .auth-button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        button:hover {
-            background: #229954;
-        }
-
-        .trial-card {
-            background: #f8f9fa;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 5px;
-            border: 1px solid #dee2e6;
-        }
-
-        .trial-card h3 {
-            margin-bottom: 10px;
-            color: #2c3e50;
-        }
-
-        .round-config {
-            background: #f0f0f0;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 5px;
-        }
-
-        .day-config {
-            background: #e8f4f8;
-            padding: 20px;
-            margin-bottom: 20px;
             border-radius: 8px;
-            border: 2px solid #3498db;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
         }
-
-        .class-config {
-            background: #fff;
+        .auth-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        /* User Info Bar */
+        .user-bar {
+            text-align: right;
+            margin-bottom: 20px;
             padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        th, td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: left;
-        }
-
-        th {
-            background: #34495e;
-            color: white;
-        }
-
-        tr:nth-child(even) {
-            background: #f8f9fa;
-        }
-
-        .running-order-item {
-            background: #f8f9fa;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            cursor: move;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border: 1px solid #ddd;
         }
-
-        .running-order-item:hover {
-            background: #e9ecef;
+        .user-info {
+            color: #2c5aa0;
+            font-weight: bold;
         }
-
-        .running-order-item.dragging {
-            opacity: 0.5;
-        }
-
-        .arrow-buttons button {
-            padding: 5px 10px;
-            margin-left: 5px;
-            font-size: 14px;
-        }
-
-        .entry-link {
-            background: #3498db;
+        .logout-btn {
+            padding: 8px 15px;
+            background: #dc3545;
             color: white;
-            padding: 20px;
+            border: none;
             border-radius: 5px;
-            margin: 20px 0;
-            text-align: center;
+            cursor: pointer;
+            font-weight: bold;
         }
-
-        .entry-link a {
+        .logout-btn:hover {
+            background: #c82333;
+        }
+        
+        /* My Trials Section */
+        .my-trials {
+            background: #e8f4f8;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .trial-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .trial-info {
+            flex: 1;
+        }
+        .trial-name {
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 5px;
+        }
+        .trial-meta {
+            font-size: 14px;
+            color: #666;
+        }
+        .trial-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .edit-btn, .delete-btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .edit-btn {
+            background: #28a745;
             color: white;
-            word-break: break-all;
         }
-
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+        }
+        .edit-btn:hover {
+            background: #218838;
+        }
+        .delete-btn:hover {
+            background: #c82333;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 30px;
+        }
+        .nav-tab {
+            padding: 15px 25px;
+            background: #f0f0f0;
+            border: 2px solid #d0d0d0;
+            cursor: pointer;
+            border-radius: 10px 10px 0 0;
+            margin-right: 5px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            color: #666;
+        }
+        .nav-tab:hover {
+            background: #e8e8e8;
+            border-color: #bbb;
+            color: #333;
+        }
+        .nav-tab.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            transform: translateY(-2px);
+            border-color: transparent;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .initial-question {
+            background: #e8f4f8;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .day-container {
+            border: 2px solid #2c5aa0;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .day-header {
+            background: #2c5aa0;
+            color: white;
+            padding: 10px 15px;
+            margin: -20px -20px 20px -20px;
+            border-radius: 6px 6px 0 0;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .classes-section {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border-left: 4px solid #ffc107;
+        }
+        .class-container {
+            border: 1px solid #28a745;
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 6px;
+            background: #f8fff8;
+        }
+        .class-header {
+            background: #28a745;
+            color: white;
+            padding: 8px 12px;
+            margin: -15px -15px 15px -15px;
+            border-radius: 4px 4px 0 0;
+            font-weight: bold;
+        }
+        .rounds-section {
+            background: #e7f3ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 3px solid #007bff;
+        }
+        .form-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        .label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        /* Typeahead dropdown styles */
+        .typeahead-container {
+            position: relative;
+            display: inline-block;
+        }
+        .typeahead-input {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            width: 250px;
+        }
+        .typeahead-input:focus {
+            border-color: #667eea;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .typeahead-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+        .typeahead-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .typeahead-item:hover, .typeahead-item.highlighted {
+            background: #f8f9fa;
+        }
+        .typeahead-item:last-child {
+            border-bottom: none;
+        }
+        
+        input, select {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        input:focus, select:focus {
+            border-color: #667eea;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        input[type="number"] { width: 100px; }
+        input[type="text"] { width: 250px; }
+        input[type="date"] { width: 180px; }
+        select { width: 250px; }
+        .yellow-highlight {
+            background-color: #ffff99 !important;
+        }
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+        
         .alert {
             padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 4px;
+            border-radius: 8px;
+            margin: 10px 0;
         }
-
         .alert-success {
             background: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
         }
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #b8daff;
+        }
+        
+        /* Results display styles */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .result-column {
+            background: white;
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .column-header {
+            padding: 15px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            text-align: center;
+        }
+        .column-date {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .column-judge {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .column-class-round {
+            font-size: 14px;
+        }
+        .column-entries {
+            padding: 15px;
+        }
+        .entry-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .entry-item:last-child {
+            border-bottom: none;
+        }
+        .entry-type-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+        .badge-regular {
+            background: #28a745;
+            color: white;
+        }
+        .badge-feo {
+            background: #ffc107;
+            color: #333;
+        }
 
-        .alert-error {
+        .hidden {
+            display: none;
+        }
+
+        .day-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            margin-bottom: 20px;
+        }
+        .day-group-header {
+            font-weight: bold;
+            font-size: 16px;
+            color: #2c5aa0;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #2c5aa0;
+        }
+        .class-group {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+        .class-group-header {
+            font-weight: bold;
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+        .trial-option {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+        .trial-option:hover {
+            border-color: #667eea;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        .trial-option label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+        .entry-type-options {
+            display: flex;
+            gap: 15px;
+            margin-left: 20px;
+        }
+        .entry-type-options label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+        }
+
+        /* Cross-Reference Grid Styles */
+        .cross-reference-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid #17a2b8;
+        }
+        .cross-reference-header {
+            background: #17a2b8;
+            color: white;
+            padding: 12px 15px;
+            margin: -20px -20px 20px -20px;
+            border-radius: 8px 8px 0 0;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .grid-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .cross-reference-grid {
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            overflow: auto;
+            max-height: 600px;
+        }
+        .grid-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+        .grid-table th {
+            background: #e9ecef;
+            padding: 8px 6px;
+            border: 1px solid #dee2e6;
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .grid-table td {
+            padding: 6px;
+            border: 1px solid #dee2e6;
+            text-align: center;
+            font-size: 12px;
+            vertical-align: middle;
+        }
+        .grid-table .dog-info {
+            text-align: left;
+            font-weight: bold;
+            color: #333;
+            white-space: nowrap;
+            position: sticky;
+            left: 0;
+            background: #f8f9fa;
+            z-index: 5;
+            min-width: 120px;
+        }
+        .grid-table .handler-info {
+            text-align: left;
+            color: #666;
+            font-size: 11px;
+            white-space: nowrap;
+            position: sticky;
+            left: 120px;
+            background: #f8f9fa;
+            z-index: 5;
+            min-width: 100px;
+        }
+        .entry-cell {
+            width: 60px;
+            height: 30px;
+        }
+        .entry-marker {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            margin: 1px;
+            font-size: 10px;
+            line-height: 20px;
+            text-align: center;
+            font-weight: bold;
+            color: white;
+        }
+        .marker-regular {
+            background: #28a745;
+        }
+        .marker-feo {
+            background: #ffc107;
+            color: #333;
+        }
+        .marker-both {
+            background: linear-gradient(45deg, #28a745 50%, #ffc107 50%);
+            color: white;
+        }
+        .date-header-group {
+            background: #343a40;
+            color: white;
+            font-weight: bold;
+        }
+        .class-header-group {
+            background: #6c757d;
+            color: white;
+        }
+        .judge-header {
+            background: #dee2e6;
+            color: #333;
+            font-size: 10px;
+        }
+        .grid-legend {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .filter-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #dee2e6;
+        }
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .filter-group label {
+            font-weight: bold;
+            font-size: 12px;
+            color: #666;
+        }
+        .filter-input {
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        /* Running Order Management Styles */
+        .running-order-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid #17a2b8;
+        }
+        .running-order-header {
+            background: #17a2b8;
+            color: white;
+            padding: 12px 15px;
+            margin: -20px -20px 20px -20px;
+            border-radius: 8px 8px 0 0;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .class-round-group {
+            background: white;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 1px solid #dee2e6;
+            overflow: hidden;
+        }
+        .class-round-header {
+            background: #e9ecef;
+            padding: 12px 15px;
+            font-weight: bold;
+            color: #495057;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .running-order-list {
+            min-height: 60px;
+            padding: 10px;
+            background: #fdfdfe;
+        }
+        .draggable-entry {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px 15px;
+            margin: 8px 0;
+            cursor: move;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+        .draggable-entry:hover {
+            border-color: #17a2b8;
+            box-shadow: 0 2px 8px rgba(23, 162, 184, 0.2);
+            transform: translateY(-1px);
+        }
+        .draggable-entry.dragging {
+            opacity: 0.5;
+            transform: rotate(3deg);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .draggable-entry.drag-over {
+            border-color: #28a745;
+            border-width: 2px;
+            background: #f8fff9;
+        }
+        .entry-info {
+            flex: 1;
+        }
+        .entry-details {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        .entry-meta {
+            font-size: 12px;
+            color: #666;
+        }
+        .entry-position {
+            background: #17a2b8;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .drag-handle {
+            color: #6c757d;
+            cursor: move;
+            margin-left: 10px;
+            font-size: 18px;
+        }
+        .conflict-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin: 10px 0;
+            color: #856404;
+            font-size: 14px;
+        }
+        .conflict-item {
             background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+            border-left: 4px solid #dc3545;
+        }
+        .shuffle-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .shuffle-btn {
+            background: #ffc107;
+            color: #333;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .shuffle-btn:hover {
+            background: #e0a800;
+        }
+        .auto-fix-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .auto-fix-btn:hover {
+            background: #218838;
         }
 
-        @media print {
-            .nav, .no-print {
-                display: none !important;
-            }
-            
-            body {
-                background: white;
-            }
+        /* Score Sheets Styles */
+        .score-sheet-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
         }
-
-        .score-sheet-container {
+        .date-selection {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #dee2e6;
+        }
+        .date-checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .date-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .date-checkbox:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+        }
+        .date-checkbox input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+        .date-info {
+            flex: 1;
+        }
+        .date-name {
+            font-weight: bold;
+            color: #333;
+        }
+        .date-meta {
+            font-size: 12px;
+            color: #666;
+        }
+        .print-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f4f8;
+            border-radius: 8px;
+        }
+        .print-btn {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .print-btn:hover {
+            background: #218838;
+        }
+        .preview-btn {
+            background: #17a2b8;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .preview-btn:hover {
+            background: #138496;
+        }
+        
+        /* Print Preview Styles */
+        .preview-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        .preview-content {
+            background: white;
+            width: 90%;
+            height: 90%;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        .preview-header {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .preview-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        /* Score Sheet Print Styles */
+        .score-sheet {
+            background: white;
             margin-bottom: 30px;
+            page-break-after: always;
+            border: 2px solid #333;
+        }
+        .score-sheet-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 2px solid #333;
+            text-align: center;
+        }
+        .trial-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        .info-block {
+            text-align: center;
+        }
+        .info-label {
+            font-weight: bold;
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .info-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            margin-top: 5px;
+        }
+        .running-order-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .running-order-table th,
+        .running-order-table td {
+            border: 1px solid #333;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        .running-order-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .running-order-table td {
+            height: 35px;
+            vertical-align: top;
+        }
+        .position-col {
+            width: 60px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .reg-col {
+            width: 120px;
+        }
+        .name-col {
+            width: 150px;
+        }
+        .handler-col {
+            width: 150px;
+        }
+        .score-col {
+            width: 80px;
+            text-align: center;
+        }
+        .placement-col {
+            width: 80px;
+            text-align: center;
+        }
+        
+        /* Print Media Queries */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            .score-sheets-container,
+            .score-sheets-container * {
+                visibility: visible;
+            }
+            .score-sheets-container {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .score-sheet {
+                page-break-after: always;
+                margin-bottom: 0;
+            }
+            .score-sheet:last-child {
+                page-break-after: avoid;
+            }
         }
 
+        /* Digital Score Entry Styles */
+        .digital-score-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .class-round-selector {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #dee2e6;
+        }
+        .selector-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .selector-item {
+            padding: 12px;
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        .selector-item:hover {
+            border-color: #667eea;
+            background: #f0f8ff;
+        }
+        .selector-item.selected {
+            border-color: #28a745;
+            background: #f8fff9;
+        }
+        .selector-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .selector-meta {
+            font-size: 12px;
+            color: #666;
+        }
+        .digital-scoresheet {
+            background: white;
+            border: 2px solid #333;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .digital-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 2px solid #333;
+            text-align: center;
+        }
+        .score-entry-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .score-entry-table th,
+        .score-entry-table td {
+            border: 1px solid #333;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        .score-entry-table th {
+            background: #e9ecef;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .score-entry-table td {
+            vertical-align: middle;
+        }
         .score-input {
             width: 80px;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .score-input:focus {
+            border-color: #667eea;
+            outline: none;
+            background: #f0f8ff;
+        }
+        .placement-input {
+            width: 60px;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .placement-input:focus {
+            border-color: #28a745;
+            outline: none;
+            background: #f8fff9;
+        }
+        .score-controls {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .save-scores-btn {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .save-scores-btn:hover {
+            background: #218838;
+        }
+        .clear-scores-btn {
+            background: #dc3545;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .clear-scores-btn:hover {
+            background: #c82333;
+        }
+        .auto-place-btn {
+            background: #17a2b8;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .auto-place-btn:hover {
+            background: #138496;
+        }
+        .scores-saved-indicator {
+            color: #28a745;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .entry-row {
+            transition: background-color 0.2s ease;
+        }
+        .entry-row:hover {
+            background: #f8f9fa;
+        }
+        .entry-row.feo-entry {
+            background: #fff3cd;
+        }
+        .entry-row.feo-entry:hover {
+            background: #ffeaa7;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>C-WAGS Trial Management System</h1>
-    </div>
-
-    <div class="container">
-        <!-- Login Section -->
-        <div id="loginSection" class="section active">
-            <h2>Login</h2>
-            <div class="form-group">
-                <label for="username">Username:</label>
-                <input type="text" id="username" placeholder="Enter any username">
+    <!-- Authentication Modal -->
+    <div id="authOverlay" class="auth-overlay">
+        <div class="auth-modal">
+            <h2>Welcome to Trial Management System</h2>
+            
+            <div class="auth-tabs">
+                <button class="auth-tab active" onclick="showAuthTab('login', this)">Login</button>
+                <button class="auth-tab" onclick="showAuthTab('register', this)">Register</button>
             </div>
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" placeholder="Enter 'password' or leave blank">
-            </div>
-            <button onclick="doLogin()">Login</button>
-            <p style="margin-top: 20px; color: #666;">
-                <small>Use password "password" or leave blank to login</small>
-            </p>
-        </div>
 
-        <!-- Navigation -->
-        <div id="navigation" class="nav">
-            <button onclick="showSection('dashboard')" id="navDashboard">Dashboard</button>
-            <button onclick="showSection('createTrial')" id="navCreateTrial">Create Trial</button>
-            <button onclick="showSection('entryForm')" id="navEntryForm">Entry Form</button>
-            <button onclick="showSection('runningOrder')" id="navRunningOrder">Running Order</button>
-            <button onclick="showSection('results')" id="navResults">Results</button>
-            <button onclick="showSection('summary')" id="navSummary">Summary</button>
-            <button onclick="logout()">Logout</button>
-        </div>
+            <!-- Login Form -->
+            <form id="loginForm" class="auth-form active" onsubmit="handleLogin(event)">
+                <input type="text" id="loginUsername" class="auth-input" placeholder="Username" required>
+                <input type="password" id="loginPassword" class="auth-input" placeholder="Password" required>
+                <button type="submit" class="auth-button">Login</button>
+            </form>
 
-        <!-- Dashboard -->
-        <div id="dashboardSection" class="section">
-            <h2>Dashboard</h2>
-            <div id="trialsList"></div>
-        </div>
-
-        <!-- Create Trial -->
-        <div id="createTrialSection" class="section">
-            <h2>Create New Trial</h2>
-            <form id="createTrialForm" onsubmit="handleCreateTrial(event)">
-                <div class="form-group">
-                    <label>Trial Type:</label>
-                    <label>
-                        <input type="radio" name="trialType" value="standalone" checked onchange="updateTrialType()">
-                        Standalone Trial
-                    </label>
-                    <label>
-                        <input type="radio" name="trialType" value="league" onchange="updateTrialType()">
-                        League Trial
-                    </label>
-                </div>
-
-                <!-- Standalone Configuration -->
-                <div id="standaloneConfig">
-                    <div class="form-group">
-                        <label for="trialDate">Trial Date:</label>
-                        <input type="date" id="trialDate" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="className">Class:</label>
-                        <select id="className" required>
-                            <option value="">Select a class</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="numRounds">Number of Rounds:</label>
-                        <input type="number" id="numRounds" min="1" max="5" value="1" onchange="updateRoundsConfig()">
-                    </div>
-                    <div id="roundsConfig"></div>
-                </div>
-
-                <!-- League Configuration -->
-                <div id="leagueConfig" style="display: none;">
-                    <div class="form-group">
-                        <label for="numDays">Number of Days:</label>
-                        <input type="number" id="numDays" min="1" max="10" value="1" onchange="updateDaysConfig()">
-                    </div>
-                    <div id="daysConfig"></div>
-                </div>
-
-                <button type="submit">Create Trial</button>
+            <!-- Register Form -->
+            <form id="registerForm" class="auth-form" onsubmit="handleRegister(event)">
+                <input type="text" id="regUsername" class="auth-input" placeholder="Choose Username" required>
+                <input type="password" id="regPassword" class="auth-input" placeholder="Choose Password" required>
+                <input type="password" id="regConfirmPassword" class="auth-input" placeholder="Confirm Password" required>
+                <input type="text" id="regFullName" class="auth-input" placeholder="Full Name" required>
+                <input type="email" id="regEmail" class="auth-input" placeholder="Email Address" required>
+                <button type="submit" class="auth-button">Register</button>
             </form>
         </div>
+    </div>
 
-        <!-- Entry Form -->
-        <div id="entryFormSection" class="section">
-            <h2>Entry Form</h2>
-            <div id="entryFormContent"></div>
+    <!-- Main Application -->
+    <div id="mainApp" class="hidden">
+        <!-- User Bar -->
+        <div class="user-bar">
+            <div class="user-info" id="userInfo"></div>
+            <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
 
-        <!-- Running Order -->
-        <div id="runningOrderSection" class="section">
-            <h2>Running Order</h2>
-            <div id="runningOrderContent"></div>
-        </div>
+        <div class="container">
+            <div class="header">
+                <h1>Trial Management System</h1>
+                <p>Track judges across multiple days, classes, and rounds</p>
+            </div>
 
-        <!-- Results -->
-        <div id="resultsSection" class="section">
-            <h2>Results</h2>
-            <div id="resultsContent"></div>
-        </div>
+            <!-- My Trials Section -->
+            <div class="my-trials">
+                <h3>My Trials</h3>
+                <div id="myTrialsList"></div>
+                <button onclick="createNewTrial()">Create New Trial</button>
+            </div>
 
-        <!-- Summary -->
-        <div id="summarySection" class="section">
-            <h2>Summary</h2>
-            <div id="summaryContent"></div>
+            <div class="nav-tabs">
+                <button class="nav-tab active" onclick="showTab('setup', this)">Trial Setup</button>
+                <button class="nav-tab" onclick="showTab('entry', this)">Entry Form</button>
+                <button class="nav-tab" onclick="showTab('results', this)">Results</button>
+                <button class="nav-tab" onclick="showTab('cross-reference', this)">Cross-Reference</button>
+                <button class="nav-tab" onclick="showTab('running-order', this)">Running Order</button>
+                <button class="nav-tab" onclick="showTab('score-sheets', this)">Score Sheets</button>
+                <button class="nav-tab" onclick="showTab('score-entry', this)">Score Entry</button>
+            </div>
+
+            <!-- Setup Tab -->
+            <div id="setup" class="tab-content active">
+                <div class="initial-question">
+                    <h3 id="trialTitle">New Trial Setup</h3>
+                    <div class="form-group">
+                        <span class="label">Trial Name:</span>
+                        <input type="text" id="trialName" placeholder="Enter trial name" style="width: 300px;">
+                    </div>
+                    <div class="form-group">
+                        <span class="label">How many days in trial?</span>
+                        <input type="number" id="trialDays" min="1" max="30" placeholder="Enter number">
+                        <button type="button" onclick="generateDays()">Generate Days</button>
+                    </div>
+                </div>
+
+                <div id="daysContainer"></div>
+                
+                <!-- Save Trial Section -->
+                <div id="saveTrialSection" style="display: none; margin-top: 30px; padding: 25px; background: linear-gradient(135deg, #e8f4f8, #f0f8ff); border-radius: 12px; text-align: center; border: 2px solid #2c5aa0;">
+                    <h3 style="color: #2c5aa0; margin-bottom: 15px;">🎯 Ready to Save Your Trial?</h3>
+                    <p style="margin-bottom: 20px; color: #666;">All days have been configured. Review your trial setup and save to generate the entry form link.</p>
+                    
+                    <div class="form-group" style="justify-content: center; margin-bottom: 20px;">
+                        <button type="button" onclick="saveTrialData()" style="font-size: 16px; padding: 15px 30px; background: linear-gradient(45deg, #28a745, #20c997);">💾 Save Trial & Generate Entry Link</button>
+                    </div>
+                    
+                    <p style="font-size: 14px; color: #666; margin: 0;">Once saved, you'll receive a shareable link for participant registration.</p>
+                </div>
+
+                <!-- Entry Form Link Section -->
+                <div id="entryFormLink" style="display: none; margin-top: 20px; padding: 20px; background: #e8f4f8; border-radius: 8px; text-align: center;">
+                    <h3 style="color: #2c5aa0;">🎉 Trial Setup Complete!</h3>
+                    <p><strong>Share this URL for participants to register:</strong></p>
+                    <div style="margin: 15px 0;">
+                        <input type="text" id="shareableURL" readonly style="width: 100%; padding: 10px; font-family: monospace; background: #fff; border: 2px solid #2c5aa0; border-radius: 5px;">
+                    </div>
+                    <div style="margin: 10px 0;">
+                        <button onclick="copyURL()" style="margin-right: 10px;">📋 Copy URL</button>
+                        <button onclick="openEntryForm()">🔗 Test Entry Form</button>
+                    </div>
+                    <p style="font-size: 14px; color: #666;">Participants can use this link to register for your trial. You can also copy this link from your trial dashboard.</p>
+                </div>
+            </div>
+
+            <!-- Entry Form Tab -->
+            <div id="entry" class="tab-content">
+                <div class="initial-question">
+                    <h3>Dog Entry Form</h3>
+                    <form id="entryForm">
+                        <div class="form-group">
+                            <span class="label">Registration Number:</span>
+                            <div class="typeahead-container">
+                                <input type="text" id="regNumber" class="typeahead-input" 
+                                       placeholder="Type registration number" 
+                                       onkeyup="handleRegNumberTypeahead(this)" 
+                                       onblur="hideRegNumberDropdown()" 
+                                       onfocus="showRegNumberDropdown()">
+                                <div id="regNumberDropdown" class="typeahead-dropdown"></div>
+                            </div>
+                            <span id="callName" style="margin-left: 15px; font-weight: bold; color: #666;">Call Name will appear here</span>
+                        </div>
+
+                        <div class="form-group">
+                            <span class="label">Handler Name:</span>
+                            <input type="text" id="handlerName" placeholder="Enter handler name">
+                        </div>
+
+                        <div class="form-group">
+                            <span class="label">Select Trial(s):</span>
+                            <div style="font-size: 12px; color: #666; margin-bottom: 10px;">You can select multiple trials for the same dog</div>
+                        </div>
+
+                        <div id="trialOptions"></div>
+
+                        <div class="form-group">
+                            <button type="button" onclick="submitEntry()">Submit Entry</button>
+                            <button type="button" onclick="clearSelections()" style="background: #6c757d; margin-left: 10px;">Clear Selections</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Results Tab -->
+            <div id="results" class="tab-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3>Trial Results</h3>
+                    <button type="button" onclick="exportToCSV()">Export to CSV</button>
+                </div>
+                <div id="resultsContainer"></div>
+            </div>
+
+            <!-- Cross-Reference Tab -->
+            <div id="cross-reference" class="tab-content">
+                <div class="cross-reference-section">
+                    <div class="cross-reference-header">
+                        <h3>🔍 Cross-Reference Grid</h3>
+                        <div>
+                            <button type="button" onclick="refreshCrossReference()" style="background: #28a745; margin-right: 10px;">🔄 Refresh</button>
+                            <button type="button" onclick="exportCrossReference()" style="background: #17a2b8;">📊 Export Grid</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Filter Section -->
+                    <div class="filter-section">
+                        <h4>Filter Options</h4>
+                        <div class="filter-grid">
+                            <div class="filter-group">
+                                <label>Search Registration:</label>
+                                <input type="text" id="filterReg" class="filter-input" placeholder="Registration number" onkeyup="applyFilters()">
+                            </div>
+                            <div class="filter-group">
+                                <label>Search Handler:</label>
+                                <input type="text" id="filterHandler" class="filter-input" placeholder="Handler name" onkeyup="applyFilters()">
+                            </div>
+                            <div class="filter-group">
+                                <label>Filter by Date:</label>
+                                <select id="filterDate" class="filter-input" onchange="applyFilters()">
+                                    <option value="">All Dates</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Filter by Class:</label>
+                                <select id="filterClass" class="filter-input" onchange="applyFilters()">
+                                    <option value="">All Classes</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Entry Type:</label>
+                                <select id="filterEntryType" class="filter-input" onchange="applyFilters()">
+                                    <option value="">All Types</option>
+                                    <option value="regular">Regular Only</option>
+                                    <option value="feo">FEO Only</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Show Scored Only:</label>
+                                <select id="filterScored" class="filter-input" onchange="applyFilters()">
+                                    <option value="">All Entries</option>
+                                    <option value="scored">Scored Only</option>
+                                    <option value="unscored">Unscored Only</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <button onclick="clearFilters()" style="background: #6c757d; padding: 6px 12px; font-size: 12px;">Clear All Filters</button>
+                        </div>
+                    </div>
+
+                    <!-- Grid Controls -->
+                    <div class="grid-controls">
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <label style="font-size: 12px;">
+                                <input type="checkbox" id="autoPopulateScores" checked onchange="updateCrossReferenceDisplay()"> Auto-populate from digital scores
+                            </label>
+                            <label style="font-size: 12px;">
+                                <input type="checkbox" id="showRunningOrder" onchange="updateCrossReferenceDisplay()"> Show running order numbers
+                            </label>
+                            <label style="font-size: 12px;">
+                                <input type="checkbox" id="highlightConflicts" checked onchange="updateCrossReferenceDisplay()"> Highlight time conflicts
+                            </label>
+                        </div>
+                        <div style="margin-left: auto; font-size: 12px; color: #666;">
+                            <span id="gridEntryCount">0 entries displayed</span>
+                        </div>
+                    </div>
+
+                    <!-- Cross-Reference Grid -->
+                    <div class="cross-reference-grid" id="crossReferenceGrid">
+                        <p style="text-align: center; color: #666; padding: 40px;">No trial data available. Please complete trial setup first.</p>
+                    </div>
+
+                    <!-- Legend -->
+                    <div class="grid-legend">
+                        <div class="legend-item">
+                            <span class="entry-marker marker-regular">R</span>
+                            <span>Regular Entry</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="entry-marker marker-feo">F</span>
+                            <span>FEO Entry</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="entry-marker marker-both">B</span>
+                            <span>Both Regular & FEO</span>
+                        </div>
+                        <div class="legend-item">
+                            <span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">⚠</span>
+                            <span>Time Conflict</span>
+                        </div>
+                        <div class="legend-item">
+                            <span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">✓</span>
+                            <span>Scored</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Score Entry Tab -->
+            <div id="score-entry" class="tab-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3>Digital Score Entry</h3>
+                    <div>
+                        <button type="button" onclick="exportAllScores()" style="background: #17a2b8; margin-right: 10px;">📊 Export All Scores</button>
+                        <button type="button" onclick="clearAllScores()" style="background: #dc3545;">🗑️ Clear All Scores</button>
+                    </div>
+                </div>
+                
+                <div class="digital-score-section">
+                    <div class="class-round-selector">
+                        <h4>Select Class & Round to Score</h4>
+                        <p>Choose a class and round to enter scores for:</p>
+                        <div id="classRoundSelector" class="selector-grid"></div>
+                    </div>
+                    
+                    <div id="digitalScoresheetContainer"></div>
+                </div>
+            </div>
+
+            <!-- Score Sheets Tab -->
+            <div id="score-sheets" class="tab-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3>Score Sheets</h3>
+                    <div>
+                        <button type="button" onclick="selectAllDates()" style="background: #6c757d; margin-right: 10px;">Select All</button>
+                        <button type="button" onclick="clearAllDates()" style="background: #6c757d;">Clear All</button>
+                    </div>
+                </div>
+                
+                <div class="score-sheet-section">
+                    <div class="date-selection">
+                        <h4>Select Dates to Print</h4>
+                        <p>Choose which trial dates you want to generate score sheets for:</p>
+                        <div id="dateSelectionContainer" class="date-checkbox-group"></div>
+                        
+                        <div class="print-controls">
+                            <button class="preview-btn" onclick="previewScoreSheets()">📄 Preview Score Sheets</button>
+                            <button class="print-btn" onclick="printScoreSheets()">🖨️ Print Selected Sheets</button>
+                            <div style="margin-left: auto; color: #666; font-size: 14px;">
+                                <span id="selectedDatesCount">0 dates selected</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Running Order Tab -->
+            <div id="running-order" class="tab-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3>Manage Running Order</h3>
+                    <div>
+                        <button type="button" onclick="resetAllRunningOrders()" style="background: #dc3545; margin-right: 10px;">Reset All Orders</button>
+                        <button type="button" onclick="saveAllRunningOrders()">Save All Orders</button>
+                    </div>
+                </div>
+                <div id="runningOrderContainer"></div>
+            </div>
         </div>
     </div>
 
-    <script>
-        // Data structures
-        const appData = {
-            currentUser: null,
-            currentTrial: null,
-            trials: [],
-            entries: [],
-            classes: [
-                'Patrol 1', 'Patrol 2', 'Patrol 3',
-                'Ranger 1', 'Ranger 2', 'Ranger 3',
-                'Investigator 1', 'Investigator 2', 'Investigator 3',
-                'Detective Diversions R1', 'Detective Diversions R2',
-                'Super Sleuth 1', 'Super Sleuth 2', 'Super Sleuth 3', 'Super Sleuth 4',
-                'Dasher 1', 'Dasher 2', 'Dasher 3', 'Dasher 4', 'Dasher 5'
-            ],
-            judges: [
-                'Sarah Knight', 'Lane Michie', 'Gary Truitt',
-                'William Johnson', 'Patty Brown', 'Sandy Williams'
-            ]
-        };
-
-        // Initialize application
-        function init() {
-            loadFromStorage();
-            populateClassDropdown();
-            
-            // Check for entry link
-            const urlParams = new URLSearchParams(window.location.search);
-            const entryId = urlParams.get('entry');
-            if (entryId) {
-                showEntryFormDirect(entryId);
-            }
-        }
-
-        // Storage functions
-        function saveToStorage() {
-            localStorage.setItem('cwags_trials', JSON.stringify(appData.trials));
-            localStorage.setItem('cwags_entries', JSON.stringify(appData.entries));
-        }
-
-        function loadFromStorage() {
-            const trials = localStorage.getItem('cwags_trials');
-            const entries = localStorage.getItem('cwags_entries');
-            
-            if (trials) appData.trials = JSON.parse(trials);
-            if (entries) appData.entries = JSON.parse(entries);
-        }
-
-        // Login handling
-        function doLogin() {
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value.trim();
-            
-            console.log('Login attempt - Username:', username, 'Password entered:', password.length > 0);
-            
-            // Simple authentication - accept 'password' or blank
-            if (password === 'password' || password === '') {
-                appData.currentUser = username || 'Guest';
-                document.getElementById('loginSection').style.display = 'none';
-                document.getElementById('loginSection').classList.remove('active');
-                document.getElementById('navigation').style.display = 'block';
-                showSection('dashboard');
-                console.log('Login successful for:', appData.currentUser);
-            } else {
-                alert('Invalid password. Please use "password" (without quotes) or leave the password field blank.');
-            }
-        }
-
-        // Allow Enter key to submit login
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('password').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    doLogin();
-                }
-            });
-            document.getElementById('username').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    doLogin();
-                }
-            });
-        });
-
-        function logout() {
-            appData.currentUser = null;
-            appData.currentTrial = null;
-            document.getElementById('navigation').style.display = 'none';
-            showSection('login');
-        }
-
-        // Navigation
-        function showSection(section) {
-            // Hide all sections
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            
-            // Show selected section
-            document.getElementById(section + 'Section').classList.add('active');
-            
-            // Update nav buttons
-            document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
-            const navButton = document.getElementById('nav' + section.charAt(0).toUpperCase() + section.slice(1));
-            if (navButton) navButton.classList.add('active');
-            
-            // Load section data
-            if (section === 'dashboard') loadDashboard();
-            else if (section === 'runningOrder') loadRunningOrder();
-            else if (section === 'results') loadResults();
-            else if (section === 'summary') loadSummary();
-        }
-
-        // Dashboard
-        function loadDashboard() {
-            const container = document.getElementById('trialsList');
-            const userTrials = appData.currentUser === 'TheAdmin' ? 
-                appData.trials : 
-                appData.trials.filter(t => t.creator === appData.currentUser);
-            
-            if (userTrials.length === 0) {
-                container.innerHTML = '<p>No trials created yet. <button onclick="showSection(\'createTrial\')">Create your first trial</button></p>';
-                return;
-            }
-            
-            let html = '';
-            userTrials.forEach((trial, index) => {
-                html += `
-                    <div class="trial-card">
-                        <h3>${trial.name}</h3>
-                        <p>Type: ${trial.type}</p>
-                        <p>Dates: ${trial.dates.join(', ')}</p>
-                        <p>Classes: ${trial.classes.length}</p>
-                        <button onclick="selectTrial(${index})">Select</button>
-                        <button onclick="viewEntryForm(${index})">Entry Form</button>
-                    </div>
-                `;
-            });
-            
-            container.innerHTML = html;
-        }
-
-        function selectTrial(index) {
-            appData.currentTrial = appData.trials[index];
-            alert('Trial selected: ' + appData.currentTrial.name);
-        }
-
-        function viewEntryForm(index) {
-            appData.currentTrial = appData.trials[index];
-            showSection('entryForm');
-            generateEntryForm();
-        }
-
-        // Trial creation
-        function populateClassDropdown() {
-            const select = document.getElementById('className');
-            select.innerHTML = '<option value="">Select a class</option>';
-            appData.classes.forEach(cls => {
-                select.innerHTML += `<option value="${cls}">${cls}</option>`;
-            });
-        }
-
-        function updateTrialType() {
-            const type = document.querySelector('input[name="trialType"]:checked').value;
-            document.getElementById('standaloneConfig').style.display = type === 'standalone' ? 'block' : 'none';
-            document.getElementById('leagueConfig').style.display = type === 'league' ? 'block' : 'none';
-        }
-
-        function updateRoundsConfig() {
-            const numRounds = parseInt(document.getElementById('numRounds').value);
-            const container = document.getElementById('roundsConfig');
-            
-            let html = '';
-            for (let i = 1; i <= numRounds; i++) {
-                html += `
-                    <div class="round-config">
-                        <h4>Round ${i}</h4>
-                        <div class="form-group">
-                            <label for="judge_r${i}">Judge:</label>
-                            <select id="judge_r${i}" required>
-                                <option value="">Select a judge</option>
-                                ${appData.judges.map(j => `<option value="${j}">${j}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="feo_r${i}">
-                                FEO offered for this round?
-                            </label>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            container.innerHTML = html;
-        }
-
-        function updateDaysConfig() {
-            const numDays = parseInt(document.getElementById('numDays').value);
-            const container = document.getElementById('daysConfig');
-            
-            let html = '';
-            for (let day = 1; day <= numDays; day++) {
-                html += `
-                    <div class="day-config">
-                        <h3>Day ${day}</h3>
-                        <div class="form-group">
-                            <label for="date_d${day}">Date:</label>
-                            <input type="date" id="date_d${day}" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="numClasses_d${day}">Number of Classes:</label>
-                            <input type="number" id="numClasses_d${day}" min="1" max="10" value="1" onchange="updateClassesForDay(${day})">
-                        </div>
-                        <div id="classes_d${day}"></div>
-                    </div>
-                `;
-            }
-            
-            container.innerHTML = html;
-            
-            // Initialize first class for each day
-            for (let day = 1; day <= numDays; day++) {
-                updateClassesForDay(day);
-            }
-        }
-
-        function updateClassesForDay(day) {
-            const numClasses = parseInt(document.getElementById(`numClasses_d${day}`).value);
-            const container = document.getElementById(`classes_d${day}`);
-            
-            let html = '';
-            for (let cls = 1; cls <= numClasses; cls++) {
-                html += `
-                    <div class="class-config">
-                        <h4>Class ${cls}</h4>
-                        <div class="form-group">
-                            <label for="class_d${day}_c${cls}">Class Name:</label>
-                            <select id="class_d${day}_c${cls}" required>
-                                <option value="">Select a class</option>
-                                ${appData.classes.map(c => `<option value="${c}">${c}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="rounds_d${day}_c${cls}">Number of Rounds:</label>
-                            <input type="number" id="rounds_d${day}_c${cls}" min="1" max="5" value="1" onchange="updateRoundsForClass(${day}, ${cls})">
-                        </div>
-                        <div id="rounds_d${day}_c${cls}_config"></div>
-                    </div>
-                `;
-            }
-            
-            container.innerHTML = html;
-            
-            // Initialize rounds
-            for (let cls = 1; cls <= numClasses; cls++) {
-                updateRoundsForClass(day, cls);
-            }
-        }
-
-        function updateRoundsForClass(day, cls) {
-            const numRounds = parseInt(document.getElementById(`rounds_d${day}_c${cls}`).value);
-            const container = document.getElementById(`rounds_d${day}_c${cls}_config`);
-            
-            let html = '';
-            for (let round = 1; round <= numRounds; round++) {
-                html += `
-                    <div style="margin-left: 20px; margin-bottom: 10px;">
-                        <strong>Round ${round}</strong>
-                        <div class="form-group">
-                            <label for="judge_d${day}_c${cls}_r${round}">Judge:</label>
-                            <select id="judge_d${day}_c${cls}_r${round}" required>
-                                <option value="">Select a judge</option>
-                                ${appData.judges.map(j => `<option value="${j}">${j}</option>`).join('')}
-                            </select>
-                        </div>
-                        <label>
-                            <input type="checkbox" id="feo_d${day}_c${cls}_r${round}">
-                            FEO offered?
-                        </label>
-                    </div>
-                `;
-            }
-            
-            container.innerHTML = html;
-        }
-
-        function handleCreateTrial(event) {
-            event.preventDefault();
-            
-            const trialType = document.querySelector('input[name="trialType"]:checked').value;
-            const trial = {
-                id: Date.now(),
-                creator: appData.currentUser,
-                type: trialType,
-                name: '',
-                dates: [],
-                classes: []
-            };
-            
-            if (trialType === 'standalone') {
-                const date = document.getElementById('trialDate').value;
-                const className = document.getElementById('className').value;
-                const numRounds = parseInt(document.getElementById('numRounds').value);
-                
-                trial.name = `${className} - ${date}`;
-                trial.dates = [date];
-                
-                const rounds = [];
-                for (let i = 1; i <= numRounds; i++) {
-                    rounds.push({
-                        round: i,
-                        judge: document.getElementById(`judge_r${i}`).value,
-                        feo: document.getElementById(`feo_r${i}`).checked
-                    });
-                }
-                
-                trial.classes.push({
-                    date: date,
-                    className: className,
-                    rounds: rounds
-                });
-            } else {
-                // League trial
-                const numDays = parseInt(document.getElementById('numDays').value);
-                trial.name = 'League Trial - ' + new Date().toLocaleDateString();
-                
-                for (let day = 1; day <= numDays; day++) {
-                    const date = document.getElementById(`date_d${day}`).value;
-                    trial.dates.push(date);
-                    
-                    const numClasses = parseInt(document.getElementById(`numClasses_d${day}`).value);
-                    
-                    for (let cls = 1; cls <= numClasses; cls++) {
-                        const className = document.getElementById(`class_d${day}_c${cls}`).value;
-                        const numRounds = parseInt(document.getElementById(`rounds_d${day}_c${cls}`).value);
-                        
-                        const rounds = [];
-                        for (let round = 1; round <= numRounds; round++) {
-                            rounds.push({
-                                round: round,
-                                judge: document.getElementById(`judge_d${day}_c${cls}_r${round}`).value,
-                                feo: document.getElementById(`feo_d${day}_c${cls}_r${round}`).checked
-                            });
-                        }
-                        
-                        trial.classes.push({
-                            date: date,
-                            className: className,
-                            rounds: rounds
-                        });
-                    }
-                }
-            }
-            
-            appData.trials.push(trial);
-            appData.currentTrial = trial;
-            saveToStorage();
-            
-            alert('Trial created successfully!');
-            showSection('entryForm');
-            generateEntryForm();
-        }
-
-        // Entry form
-        function generateEntryForm() {
-            if (!appData.currentTrial) return;
-            
-            const container = document.getElementById('entryFormContent');
-            const entryLink = `${window.location.origin}${window.location.pathname}?entry=${appData.currentTrial.id}`;
-            
-            let html = `
-                <div class="entry-link">
-                    <p><strong>Entry Form Link:</strong></p>
-                    <p><a href="${entryLink}" target="_blank">${entryLink}</a></p>
-                    <button onclick="navigator.clipboard.writeText('${entryLink}')">Copy Link</button>
+    <!-- Print Preview Modal -->
+    <div id="previewModal" class="preview-modal">
+        <div class="preview-content">
+            <div class="preview-header">
+                <h4>Score Sheets Preview</h4>
+                <div>
+                    <button onclick="printFromPreview()" class="print-btn" style="margin-right: 10px;">🖨️ Print</button>
+                    <button onclick="closePreview()" style="background: #6c757d; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer;">Close</button>
                 </div>
-                
-                <h3>Entry Form Preview</h3>
-                <form id="trialEntryForm" onsubmit="handleEntrySubmit(event)">
-                    <div class="form-group">
-                        <label for="handlerName">Handler Name:</label>
-                        <input type="text" id="handlerName" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="dogCallName">Dog's Call Name:</label>
-                        <input type="text" id="dogCallName" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="dogRegNumber">Registration Number:</label>
-                        <input type="text" id="dogRegNumber" required>
-                    </div>
-                    
-                    <h4>Select Classes to Enter:</h4>
-            `;
-            
-            appData.currentTrial.classes.forEach((cls, index) => {
-                const judges = cls.rounds.map(r => r.judge).join(', ');
-                html += `
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" name="classes" value="${index}">
-                            ${cls.date} - ${cls.className} (Judge: ${judges})
-                        </label>
-                    </div>
-                `;
-            });
-            
-            html += '<button type="submit">Submit Entry</button></form>';
-            container.innerHTML = html;
-        }
-
-        function handleEntrySubmit(event) {
-            event.preventDefault();
-            
-            const selectedClasses = Array.from(document.querySelectorAll('input[name="classes"]:checked'))
-                .map(cb => parseInt(cb.value));
-            
-            if (selectedClasses.length === 0) {
-                alert('Please select at least one class');
-                return;
-            }
-            
-            const entry = {
-                id: Date.now(),
-                trialId: appData.currentTrial.id,
-                handlerName: document.getElementById('handlerName').value,
-                dogCallName: document.getElementById('dogCallName').value,
-                dogRegNumber: document.getElementById('dogRegNumber').value,
-                classes: selectedClasses,
-                timestamp: new Date().toISOString()
-            };
-            
-            appData.entries.push(entry);
-            saveToStorage();
-            
-            alert('Entry submitted successfully!');
-            document.getElementById('trialEntryForm').reset();
-        }
-
-        function showEntryFormDirect(trialId) {
-            const trial = appData.trials.find(t => t.id == trialId);
-            if (trial) {
-                appData.currentTrial = trial;
-                document.getElementById('loginSection').classList.remove('active');
-                showSection('entryForm');
-                generateEntryForm();
-            }
-        }
-
-        // Running order
-        function loadRunningOrder() {
-            if (!appData.currentTrial) {
-                document.getElementById('runningOrderContent').innerHTML = '<p>Please select a trial first.</p>';
-                return;
-            }
-            
-            const container = document.getElementById('runningOrderContent');
-            const trialEntries = appData.entries.filter(e => e.trialId === appData.currentTrial.id);
-            
-            if (trialEntries.length === 0) {
-                container.innerHTML = '<p>No entries yet for this trial.</p>';
-                return;
-            }
-            
-            // Group entries by date, judge, class, round
-            const groups = {};
-            
-            trialEntries.forEach(entry => {
-                entry.classes.forEach(classIndex => {
-                    const cls = appData.currentTrial.classes[classIndex];
-                    cls.rounds.forEach(round => {
-                        const key = `${cls.date}_${round.judge}_${cls.className}_Round${round.round}`;
-                        if (!groups[key]) {
-                            groups[key] = {
-                                date: cls.date,
-                                judge: round.judge,
-                                className: cls.className,
-                                round: round.round,
-                                entries: []
-                            };
-                        }
-                        groups[key].entries.push(entry);
-                    });
-                });
-            });
-            
-            let html = '<h3>Running Order</h3>';
-            
-            Object.keys(groups).sort().forEach(key => {
-                const group = groups[key];
-                html += `
-                    <div class="round-config">
-                        <h4>${group.date} - ${group.judge} - ${group.className} - Round ${group.round}</h4>
-                        <div id="order_${key}" data-key="${key}">
-                `;
-                
-                group.entries.forEach((entry, index) => {
-                    html += `
-                        <div class="running-order-item" draggable="true" data-index="${index}">
-                            <span>${index + 1}. ${entry.handlerName} - ${entry.dogCallName}</span>
-                            <div class="arrow-buttons">
-                                <button onclick="moveEntry('${key}', ${index}, -1)">↑</button>
-                                <button onclick="moveEntry('${key}', ${index}, 1)">↓</button>
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                html += `
-                        </div>
-                        <button onclick="submitRunningOrder('${key}')">Submit Running Order</button>
-                    </div>
-                `;
-            });
-            
-            container.innerHTML = html;
-            initDragAndDrop();
-        }
-
-        function moveEntry(key, index, direction) {
-            const container = document.getElementById(`order_${key}`);
-            const items = Array.from(container.querySelectorAll('.running-order-item'));
-            
-            const newIndex = index + direction;
-            if (newIndex >= 0 && newIndex < items.length) {
-                const item = items[index];
-                const targetItem = items[newIndex];
-                
-                if (direction === -1) {
-                    container.insertBefore(item, targetItem);
-                } else {
-                    container.insertBefore(targetItem, item);
-                }
-                
-                updateOrderIndices(key);
-            }
-        }
-
-        function updateOrderIndices(key) {
-            const container = document.getElementById(`order_${key}`);
-            const items = container.querySelectorAll('.running-order-item');
-            
-            items.forEach((item, index) => {
-                item.dataset.index = index;
-                const span = item.querySelector('span');
-                span.textContent = span.textContent.replace(/^\d+\./, `${index + 1}.`);
-            });
+            </div>
+            <div class="preview-body">
+                <div id="previewContent" class="score-sheets-container"></div>
+            </div>
+        </div>
+    </div>
+</body>
