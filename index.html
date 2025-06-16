@@ -1,874 +1,4 @@
-<script>
-        // Global variables
-        var currentUser = null;
-        var currentTrialId = null;
-        var dogData = [];
-        var availableClasses = [];
-        var availableJudges = [];
-        var trialConfig = [];
-        var entryResults = [];
-        var runningOrders = {}; // Store custom running orders
-        var digitalScores = {}; // Store digital scores
-        var totalDays = 0;
-        var savedDays = 0;
-
-        // Load JSON data automatically on page load
-        function loadDogData() {
-            var xhr = new XMLHttpRequest();
-            xhr.open('GET', './data.json', true);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        try {
-                            var data = JSON.parse(xhr.responseText);
-                            
-                            if (Array.isArray(data) && data.length > 0) {
-                                dogData = data;
-                                availableClasses = getUniqueValues(data, 'className', 'class');
-                                availableJudges = getUniqueValues(data, 'judge');
-                                console.log('Dog data loaded successfully:', dogData.length, 'records');
-                                showStatusMessage('Dog data loaded successfully!', 'success');
-                            } else {
-                                console.warn('JSON file appears to be empty or invalid format');
-                                loadFallbackData();
-                            }
-                        } catch (error) {
-                            console.error('Error parsing JSON data:', error);
-                            loadFallbackData();
-                        }
-                    } else {
-                        console.error('Could not load data.json');
-                        loadFallbackData();
-                    }
-                }
-            };
-            xhr.send();
-        }
-
-        function getUniqueValues(data, field1, field2) {
-            var values = [];
-            for (var i = 0; i < data.length; i++) {
-                var value = data[i][field1] || data[i][field2];
-                if (value && values.indexOf(value) === -1) {
-                    values.push(value);
-                }
-            }
-            return values;
-        }
-
-        function loadFallbackData() {
-            dogData = [
-                { regNumber: "12345", callName: "Buddy" },
-                { regNumber: "67890", callName: "Luna" },
-                { regNumber: "11111", callName: "Max" },
-                { regNumber: "22222", callName: "Bella" }
-            ];
-            availableClasses = ["Novice A", "Novice B", "Open A", "Open B", "Utility A", "Utility B"];
-            availableJudges = ["Judge Smith", "Judge Johnson", "Judge Williams", "Judge Brown", "Judge Davis"];
-            showStatusMessage('Using default data - could not load data.json', 'warning');
-        }
-
-        // Authentication functions
-        function showAuthTab(tab, element) {
-            var tabs = document.querySelectorAll('.auth-tab');
-            for (var i = 0; i < tabs.length; i++) {
-                tabs[i].classList.remove('active');
-            }
-            element.classList.add('active');
-            
-            var forms = document.querySelectorAll('.auth-form');
-            for (var i = 0; i < forms.length; i++) {
-                forms[i].classList.remove('active');
-            }
-            document.getElementById(tab + 'Form').classList.add('active');
-        }
-
-        function handleLogin(event) {
-            event.preventDefault();
-            
-            var username = document.getElementById('loginUsername').value;
-            var password = document.getElementById('loginPassword').value;
-            var users = JSON.parse(localStorage.getItem('trialUsers') || '{}');
-            
-            if (users[username] && users[username].password === password) {
-                currentUser = users[username];
-                showMainApp();
-                loadUserTrials();
-            } else {
-                alert('Invalid username or password');
-            }
-        }
-
-        function handleRegister(event) {
-            event.preventDefault();
-            
-            var username = document.getElementById('regUsername').value;
-            var password = document.getElementById('regPassword').value;
-            var confirmPassword = document.getElementById('regConfirmPassword').value;
-            var fullName = document.getElementById('regFullName').value;
-            var email = document.getElementById('regEmail').value;
-            
-            if (password !== confirmPassword) {
-                alert('Passwords do not match');
-                return;
-            }
-            
-            var users = JSON.parse(localStorage.getItem('trialUsers') || '{}');
-            
-            if (users[username]) {
-                alert('Username already exists');
-                return;
-            }
-            
-            users[username] = {
-                username: username,
-                password: password,
-                fullName: fullName,
-                email: email,
-                created: new Date().toISOString()
-            };
-            
-            localStorage.setItem('trialUsers', JSON.stringify(users));
-            alert('Registration successful! Please login.');
-            showAuthTab('login', document.querySelector('.auth-tab'));
-        }
-
-        function showMainApp() {
-            document.getElementById('authOverlay').classList.add('hidden');
-            document.getElementById('mainApp').classList.remove('hidden');
-            document.getElementById('userInfo').textContent = 'Welcome, ' + currentUser.fullName;
-        }
-
-        function logout() {
-            currentUser = null;
-            currentTrialId = null;
-            document.getElementById('authOverlay').classList.remove('hidden');
-            document.getElementById('mainApp').classList.add('hidden');
-            
-            var inputs = document.querySelectorAll('input');
-            for (var i = 0; i < inputs.length; i++) {
-                inputs[i].value = '';
-            }
-        }
-
-        // Trial management functions
-        function loadUserTrials() {
-            var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
-            var container = document.getElementById('myTrialsList');
-            
-            if (Object.keys(userTrials).length === 0) {
-                container.innerHTML = '<p style="color: #666; font-style: italic;">No trials yet. Create your first trial!</p>';
-                return;
-            }
-            
-            var html = '';
-            for (var trialId in userTrials) {
-                if (userTrials.hasOwnProperty(trialId)) {
-                    var trial = userTrials[trialId];
-                    var created = new Date(trial.created).toLocaleDateString();
-                    var days = trial.config ? getUniqueDays(trial.config).length : 0;
-                    
-                    // Get current entry count by syncing with public storage
-                    var publicTrials = JSON.parse(localStorage.getItem('publicTrials') || '{}');
-                    var userEntries = trial.results || [];
-                    var publicEntries = (publicTrials[trialId] && publicTrials[trialId].results) ? publicTrials[trialId].results : [];
-                    var totalEntries = mergeEntries(userEntries, publicEntries).length;
-                    
-                    var trialName = trial.name || 'Untitled Trial';
-                    var trialStatus = (trial.config && trial.config.length > 0) ? 'Configured' : 'Setup Incomplete';
-                    var statusColor = (trial.config && trial.config.length > 0) ? '#28a745' : '#ffc107';
-                    
-                    html += '<div class="trial-item">' +
-                        '<div class="trial-info">' +
-                        '<div class="trial-name">' + trialName + '</div>' +
-                        '<div class="trial-meta">Created: ' + created + ' | Days: ' + days + ' | Entries: ' + totalEntries + '</div>' +
-                        '<div class="trial-status" style="color: ' + statusColor + '; font-size: 12px; font-weight: bold;">' + trialStatus + '</div>' +
-                        '</div>' +
-                        '<div class="trial-actions">' +
-                        '<button class="edit-btn" onclick="editTrial(\'' + trialId + '\')">Edit</button>';
-                    
-                    // Add Copy Link button if trial is configured
-                    if (trial.config && trial.config.length > 0) {
-                        html += '<button class="edit-btn" onclick="copyTrialLink(\'' + trialId + '\')" style="background: #17a2b8;">Copy Link</button>';
-                    }
-                    
-                    html += '<button class="delete-btn" onclick="deleteTrial(\'' + trialId + '\')">Delete</button>' +
-                        '</div>' +
-                        '</div>';
-                }
-            }
-            container.innerHTML = html;
-        }
-
-        function copyTrialLink(trialId) {
-            var baseURL = window.location.origin + window.location.pathname;
-            var shareableURL = baseURL + '?trial=' + trialId + '&mode=entry';
-            
-            // Create temporary input to copy text
-            var tempInput = document.createElement('input');
-            tempInput.value = shareableURL;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            tempInput.setSelectionRange(0, 99999);
-            
-            try {
-                document.execCommand('copy');
-                showStatusMessage('Entry form link copied to clipboard!', 'success');
-            } catch (err) {
-                showStatusMessage('Could not copy link. URL: ' + shareableURL, 'warning');
-            }
-            
-            document.body.removeChild(tempInput);
-        }
-
-        function getUniqueDays(config) {
-            var days = [];
-            for (var i = 0; i < config.length; i++) {
-                if (days.indexOf(config[i].day) === -1) {
-                    days.push(config[i].day);
-                }
-            }
-            return days;
-        }
-
-        function createNewTrial() {
-            currentTrialId = 'trial_' + Date.now();
-            document.getElementById('trialTitle').textContent = 'New Trial Setup';
-            document.getElementById('trialName').value = '';
-            document.getElementById('trialDays').value = '';
-            document.getElementById('daysContainer').innerHTML = '';
-            trialConfig = [];
-            entryResults = [];
-            runningOrders = {};
-            digitalScores = {};
-            updateTrialOptions();
-            updateResultsDisplay();
-            updateCrossReferenceDisplay();
-            showTab('setup', document.querySelector('.nav-tab'));
-        }
-
-        function editTrial(trialId) {
-            var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
-            var trial = userTrials[trialId];
-            
-            if (!trial) {
-                alert('Trial not found');
-                return;
-            }
-            
-            currentTrialId = trialId;
-            document.getElementById('trialTitle').textContent = 'Editing: ' + (trial.name || 'Untitled Trial');
-            document.getElementById('trialName').value = trial.name || '';
-            
-            trialConfig = trial.config || [];
-            runningOrders = trial.runningOrders || {};
-            digitalScores = trial.digitalScores || {};
-            
-            // Load entries from both user storage and public storage, then merge
-            var userEntries = trial.results || [];
-            var publicTrials = JSON.parse(localStorage.getItem('publicTrials') || '{}');
-            var publicEntries = (publicTrials[trialId] && publicTrials[trialId].results) ? publicTrials[trialId].results : [];
-            
-            // Merge entries and remove duplicates based on timestamp
-            entryResults = mergeEntries(userEntries, publicEntries);
-            
-            // Save merged entries back to user storage
-            userTrials[trialId].results = entryResults;
-            localStorage.setItem('trials_' + currentUser.username, JSON.stringify(userTrials));
-            
-            if (trialConfig.length > 0) {
-                var maxDay = getMaxDay(trialConfig);
-                document.getElementById('trialDays').value = maxDay;
-                generateDays();
-                
-                setTimeout(function() {
-                    populateExistingTrialData();
-                }, 100);
-            }
-            
-            updateTrialOptions();
-            updateResultsDisplay();
-            updateCrossReferenceDisplay();
-            showTab('setup', document.querySelector('.nav-tab'));
-        }
-
-        function mergeEntries(userEntries, publicEntries) {
-            var merged = [];
-            var timestamps = {};
-            
-            // Add user entries first
-            for (var i = 0; i < userEntries.length; i++) {
-                merged.push(userEntries[i]);
-                timestamps[userEntries[i].timestamp] = true;
-            }
-            
-            // Add public entries that don't already exist
-            for (var i = 0; i < publicEntries.length; i++) {
-                if (!timestamps[publicEntries[i].timestamp]) {
-                    merged.push(publicEntries[i]);
-                    timestamps[publicEntries[i].timestamp] = true;
-                }
-            }
-            
-            return merged;
-        }
-
-        function getMaxDay(config) {
-            var max = 0;
-            for (var i = 0; i < config.length; i++) {
-                if (config[i].day > max) {
-                    max = config[i].day;
-                }
-            }
-            return max;
-        }
-
-        function populateExistingTrialData() {
-            for (var i = 0; i < trialConfig.length; i++) {
-                var config = trialConfig[i];
-                var dayNum = config.day;
-                var dateInput = document.getElementById('date_' + dayNum);
-                if (dateInput) {
-                    dateInput.value = config.date;
-                }
-                
-                var classInput = document.getElementById('class_' + dayNum + '_' + config.classNum);
-                if (classInput) {
-                    classInput.value = config.className;
-                }
-                
-                var judgeInput = document.getElementById('judge_' + dayNum + '_' + config.classNum + '_' + config.roundNum);
-                if (judgeInput) {
-                    judgeInput.value = config.judge;
-                }
-                
-                var feoInput = document.getElementById('feo_' + dayNum + '_' + config.classNum + '_' + config.roundNum);
-                if (feoInput) {
-                    feoInput.checked = config.feoOffered || false;
-                }
-            }
-        }
-
-        function deleteTrial(trialId) {
-            if (confirm('Are you sure you want to delete this trial? This action cannot be undone.')) {
-                var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
-                delete userTrials[trialId];
-                localStorage.setItem('trials_' + currentUser.username, JSON.stringify(userTrials));
-                loadUserTrials();
-            }
-        }
-
-        function saveTrialData() {
-            if (!currentUser) {
-                alert("Please log in first.");
-                return;
-            }
-            
-            if (!currentTrialId) {
-                alert("Please create a new trial first.");
-                return;
-            }
-            
-            var trialName = document.getElementById('trialName').value.trim();
-            if (!trialName) {
-                alert("Please enter a trial name.");
-                return;
-            }
-
-            if (trialConfig.length === 0) {
-                alert("Please configure at least one day before saving the trial.");
-                return;
-            }
-            
-            var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
-            
-            var trialData = {
-                name: trialName,
-                config: trialConfig,
-                results: entryResults,
-                runningOrders: runningOrders,
-                digitalScores: digitalScores,
-                owner: currentUser.username,
-                created: userTrials[currentTrialId] && userTrials[currentTrialId].created ? userTrials[currentTrialId].created : new Date().toISOString(),
-                updated: new Date().toISOString()
-            };
-            
-            userTrials[currentTrialId] = trialData;
-            localStorage.setItem('trials_' + currentUser.username, JSON.stringify(userTrials));
-            
-            var publicTrials = JSON.parse(localStorage.getItem('publicTrials') || '{}');
-            publicTrials[currentTrialId] = trialData;
-            localStorage.setItem('publicTrials', JSON.stringify(publicTrials));
-            
-            generateShareableURL();
-            document.getElementById('entryFormLink').style.display = 'block';
-            showStatusMessage("Trial saved successfully!", "success");
-            loadUserTrials();
-        }
-
-        // Tab functions
-        function showTab(tabName, element) {
-            var tabs = document.querySelectorAll('.nav-tab');
-            for (var i = 0; i < tabs.length; i++) {
-                tabs[i].classList.remove('active');
-            }
-            if (element) {
-                element.classList.add('active');
-            }
-            
-            var contents = document.querySelectorAll('.tab-content');
-            for (var i = 0; i < contents.length; i++) {
-                contents[i].classList.remove('active');
-            }
-            document.getElementById(tabName).classList.add('active');
-            
-            // If switching to Results tab, sync entries from public storage
-            if (tabName === 'results' && currentTrialId && currentUser) {
-                syncEntriesFromPublic();
-            }
-            
-            // If switching to Cross-Reference tab, load the grid
-            if (tabName === 'cross-reference' && currentTrialId) {
-                loadCrossReferenceTab();
-            }
-            
-            // If switching to Running Order tab, load running orders
-            if (tabName === 'running-order' && currentTrialId) {
-                loadRunningOrderManagement();
-            }
-            
-            // If switching to Score Sheets tab, load date selection
-            if (tabName === 'score-sheets' && currentTrialId) {
-                loadScoreSheetsManagement();
-            }
-            
-            // If switching to Score Entry tab, load digital scoring
-            if (tabName === 'score-entry' && currentTrialId) {
-                loadDigitalScoreEntry();
-            }
-        }
-
-        function syncEntriesFromPublic() {
-            if (!currentTrialId || !currentUser) return;
-            
-            var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
-            var publicTrials = JSON.parse(localStorage.getItem('publicTrials') || '{}');
-            
-            if (userTrials[currentTrialId] && publicTrials[currentTrialId]) {
-                var userEntries = userTrials[currentTrialId].results || [];
-                var publicEntries = publicTrials[currentTrialId].results || [];
-                
-                // Merge entries
-                entryResults = mergeEntries(userEntries, publicEntries);
-                
-                // Save back to user storage
-                userTrials[currentTrialId].results = entryResults;
-                userTrials[currentTrialId].updated = new Date().toISOString();
-                localStorage.setItem('trials_' + currentUser.username, JSON.stringify(userTrials));
-                
-                // Update display
-                updateResultsDisplay();
-                updateCrossReferenceDisplay();
-                
-                // Update trial count in dashboard
-                loadUserTrials();
-            }
-        }
-
-        // Cross-Reference Grid Functions
-        function loadCrossReferenceTab() {
-            if (trialConfig.length === 0) {
-                document.getElementById('crossReferenceGrid').innerHTML = 
-                    '<p style="text-align: center; color: #666; padding: 40px;">No trial data available. Please complete trial setup first.</p>';
-                return;
-            }
-            
-            populateFilterOptions();
-            updateCrossReferenceDisplay();
-        }
-
-        function populateFilterOptions() {
-            // Populate date filter
-            var dateFilter = document.getElementById('filterDate');
-            var dates = [];
-            for (var i = 0; i < trialConfig.length; i++) {
-                if (dates.indexOf(trialConfig[i].date) === -1) {
-                    dates.push(trialConfig[i].date);
-                }
-            }
-            dates.sort();
-            
-            dateFilter.innerHTML = '<option value="">All Dates</option>';
-            for (var i = 0; i < dates.length; i++) {
-                dateFilter.innerHTML += '<option value="' + dates[i] + '">' + dates[i] + '</option>';
-            }
-            
-            // Populate class filter
-            var classFilter = document.getElementById('filterClass');
-            var classes = [];
-            for (var i = 0; i < trialConfig.length; i++) {
-                if (classes.indexOf(trialConfig[i].className) === -1) {
-                    classes.push(trialConfig[i].className);
-                }
-            }
-            classes.sort();
-            
-            classFilter.innerHTML = '<option value="">All Classes</option>';
-            for (var i = 0; i < classes.length; i++) {
-                classFilter.innerHTML += '<option value="' + classes[i] + '">' + classes[i] + '</option>';
-            }
-        }
-
-        function updateCrossReferenceDisplay() {
-            if (trialConfig.length === 0) return;
-            
-            var filteredEntries = getFilteredEntries();
-            var gridHTML = generateCrossReferenceGrid(filteredEntries);
-            document.getElementById('crossReferenceGrid').innerHTML = gridHTML;
-            
-            // Update entry count
-            document.getElementById('gridEntryCount').textContent = filteredEntries.length + ' entries displayed';
-        }
-
-        function getFilteredEntries() {
-            var filtered = [];
-            var regFilter = document.getElementById('filterReg').value.toLowerCase();
-            var handlerFilter = document.getElementById('filterHandler').value.toLowerCase();
-            var dateFilter = document.getElementById('filterDate').value;
-            var classFilter = document.getElementById('filterClass').value;
-            var entryTypeFilter = document.getElementById('filterEntryType').value;
-            var scoredFilter = document.getElementById('filterScored').value;
-            
-            for (var i = 0; i < entryResults.length; i++) {
-                var entry = entryResults[i];
-                
-                // Apply filters
-                if (regFilter && entry.regNumber.toLowerCase().indexOf(regFilter) === -1) continue;
-                if (handlerFilter && entry.handler.toLowerCase().indexOf(handlerFilter) === -1) continue;
-                if (dateFilter && entry.date !== dateFilter) continue;
-                if (classFilter && entry.className !== classFilter) continue;
-                if (entryTypeFilter && entry.entryType !== entryTypeFilter) continue;
-                
-                // Apply scored filter
-                if (scoredFilter) {
-                    var scoreKey = entry.date + '|' + entry.className + '|' + entry.round + '|' + entry.regNumber + '|' + entry.entryType;
-                    var hasScore = digitalScores[scoreKey] && (digitalScores[scoreKey].score !== '' || digitalScores[scoreKey].placement !== '');
-                    
-                    if (scoredFilter === 'scored' && !hasScore) continue;
-                    if (scoredFilter === 'unscored' && hasScore) continue;
-                }
-                
-                filtered.push(entry);
-            }
-            
-            return filtered;
-        }
-
-        function generateCrossReferenceGrid(entries) {
-            if (entries.length === 0) {
-                return '<p style="text-align: center; color: #666; padding: 40px;">No entries match the current filters.</p>';
-            }
-            
-            // Group entries by dog
-            var dogGroups = {};
-            for (var i = 0; i < entries.length; i++) {
-                var entry = entries[i];
-                var dogKey = entry.regNumber + '|' + entry.callName + '|' + entry.handler;
-                if (!dogGroups[dogKey]) {
-                    dogGroups[dogKey] = {
-                        regNumber: entry.regNumber,
-                        callName: entry.callName,
-                        handler: entry.handler,
-                        entries: []
-                    };
-                }
-                dogGroups[dogKey].entries.push(entry);
-            }
-            
-            // Create column structure (Date > Class > Round combinations)
-            var columns = [];
-            var columnMap = {};
-            
-            for (var i = 0; i < trialConfig.length; i++) {
-                var config = trialConfig[i];
-                var colKey = config.date + '|' + config.className + '|' + config.roundNum;
-                if (!columnMap[colKey]) {
-                    columnMap[colKey] = {
-                        date: config.date,
-                        className: config.className,
-                        roundNum: config.roundNum,
-                        judge: config.judge,
-                        feoOffered: config.feoOffered
-                    };
-                    columns.push(columnMap[colKey]);
-                }
-            }
-            
-            // Sort columns by date, then class, then round
-            columns.sort(function(a, b) {
-                if (a.date !== b.date) return new Date(a.date) - new Date(b.date);
-                if (a.className !== b.className) return a.className.localeCompare(b.className);
-                return a.roundNum - b.roundNum;
-            });
-            
-            var html = '<table class="grid-table">';
-            
-            // Generate header rows
-            html += generateGridHeaders(columns);
-            
-            // Generate data rows
-            var sortedDogs = Object.keys(dogGroups).sort(function(a, b) {
-                return dogGroups[a].regNumber.localeCompare(dogGroups[b].regNumber);
-            });
-            
-            for (var d = 0; d < sortedDogs.length; d++) {
-                var dogKey = sortedDogs[d];
-                var dog = dogGroups[dogKey];
-                html += generateGridDataRow(dog, columns);
-            }
-            
-            html += '</table>';
-            return html;
-        }
-
-        function generateGridHeaders(columns) {
-            var html = '';
-            
-            // Create grouped headers for dates
-            var dateGroups = {};
-            var classGroups = {};
-            
-            for (var i = 0; i < columns.length; i++) {
-                var col = columns[i];
-                var dateKey = col.date;
-                var classKey = col.date + '|' + col.className;
-                
-                if (!dateGroups[dateKey]) {
-                    dateGroups[dateKey] = [];
-                }
-                if (!classGroups[classKey]) {
-                    classGroups[classKey] = [];
-                }
-                
-                dateGroups[dateKey].push(col);
-                classGroups[classKey].push(col);
-            }
-            
-            // Date header row
-            html += '<tr>';
-            html += '<th rowspan="3" class="dog-info">Reg #</th>';
-            html += '<th rowspan="3" class="handler-info">Handler</th>';
-            
-            for (var dateKey in dateGroups) {
-                var dateGroup = dateGroups[dateKey];
-                html += '<th colspan="' + dateGroup.length + '" class="date-header-group">' + dateKey + '</th>';
-            }
-            html += '</tr>';
-            
-            // Class header row
-            html += '<tr>';
-            for (var classKey in classGroups) {
-                var classGroup = classGroups[classKey];
-                var className = classKey.split('|')[1];
-                html += '<th colspan="' + classGroup.length + '" class="class-header-group">' + className + '</th>';
-            }
-            html += '</tr>';
-            
-            // Round/Judge header row
-            html += '<tr>';
-            for (var i = 0; i < columns.length; i++) {
-                var col = columns[i];
-                html += '<th class="judge-header">R' + col.roundNum + '<br>' + col.judge + '</th>';
-            }
-            html += '</tr>';
-            
-            return html;
-        }
-
-        function generateGridDataRow(dog, columns) {
-            var html = '<tr>';
-            
-            // Dog info columns
-            html += '<td class="dog-info">' + dog.regNumber + '<br><small>' + dog.callName + '</small></td>';
-            html += '<td class="handler-info">' + dog.handler + '</td>';
-            
-            // Entry columns
-            for (var i = 0; i < columns.length; i++) {
-                var col = columns[i];
-                html += '<td class="entry-cell">';
-                
-                // Find entries for this dog in this column
-                var regularEntry = null;
-                var feoEntry = null;
-                
-                for (var j = 0; j < dog.entries.length; j++) {
-                    var entry = dog.entries[j];
-                    if (entry.date === col.date && 
-                        entry.className === col.className && 
-                        entry.round == col.roundNum) {
-                        if (entry.entryType === 'regular') {
-                            regularEntry = entry;
-                        } else if (entry.entryType === 'feo') {
-                            feoEntry = entry;
-                        }
-                    }
-                }
-                
-                // Generate entry markers
-                var autoPopulate = document.getElementById('autoPopulateScores').checked;
-                var showRunningOrder = document.getElementById('showRunningOrder').checked;
-                var highlightConflicts = document.getElementById('highlightConflicts').checked;
-                
-                if (regularEntry && feoEntry) {
-                    html += '<span class="entry-marker marker-both">B</span>';
-                } else if (regularEntry) {
-                    var marker = 'R';
-                    var markerClass = 'marker-regular';
-                    
-                    // Check for scores if auto-populate is enabled
-                    if (autoPopulate) {
-                        var scoreKey = regularEntry.date + '|' + regularEntry.className + '|' + regularEntry.round + '|' + regularEntry.regNumber + '|regular';
-                        if (digitalScores[scoreKey] && (digitalScores[scoreKey].score !== '' || digitalScores[scoreKey].placement !== '')) {
-                            marker = '✓';
-                            markerClass = 'marker-scored';
-                        }
-                    }
-                    
-                    html += '<span class="entry-marker ' + markerClass + '">' + marker + '</span>';
-                } else if (feoEntry) {
-                    var marker = 'F';
-                    var markerClass = 'marker-feo';
-                    
-                    // Check for scores if auto-populate is enabled
-                    if (autoPopulate) {
-                        var scoreKey = feoEntry.date + '|' + feoEntry.className + '|' + feoEntry.round + '|' + feoEntry.regNumber + '|feo';
-                        if (digitalScores[scoreKey] && (digitalScores[scoreKey].score !== '' || digitalScores[scoreKey].placement !== '')) {
-                            marker = '✓';
-                            markerClass = 'marker-scored';
-                        }
-                    }
-                    
-                    html += '<span class="entry-marker ' + markerClass + '">' + marker + '</span>';
-                }
-                
-                // Add running order number if enabled
-                if (showRunningOrder && (regularEntry || feoEntry)) {
-                    var entry = regularEntry || feoEntry;
-                    var orderKey = entry.date + '|' + entry.className + '|' + entry.round;
-                    if (runningOrders[orderKey]) {
-                        var order = runningOrders[orderKey];
-                        for (var k = 0; k < order.length; k++) {
-                            if (order[k].regNumber === entry.regNumber && order[k].entryType === entry.entryType) {
-                                html += '<br><small>' + (k + 1) + '</small>';
-                                break;
-                            }
-                        }
-                    }
-                }
-                
-                html += '</td>';
-            }
-            
-            html += '</tr>';
-            return html;
-        }
-
-        function applyFilters() {
-            updateCrossReferenceDisplay();
-        }
-
-        function clearFilters() {
-            document.getElementById('filterReg').value = '';
-            document.getElementById('filterHandler').value = '';
-            document.getElementById('filterDate').value = '';
-            document.getElementById('filterClass').value = '';
-            document.getElementById('filterEntryType').value = '';
-            document.getElementById('filterScored').value = '';
-            updateCrossReferenceDisplay();
-        }
-
-        function refreshCrossReference() {
-            if (currentTrialId && currentUser) {
-                syncEntriesFromPublic();
-            }
-            updateCrossReferenceDisplay();
-            showStatusMessage('Cross-reference grid refreshed!', 'success');
-        }
-
-        function exportCrossReference() {
-            var filteredEntries = getFilteredEntries();
-            if (filteredEntries.length === 0) {
-                alert('No entries to export');
-                return;
-            }
-            
-            var csv = 'Registration,Call Name,Handler,Date,Class,Round,Judge,Entry Type,Score,Placement,Running Order\n';
-            
-            for (var i = 0; i < filteredEntries.length; i++) {
-                var entry = filteredEntries[i];
-                
-                // Get score and placement
-                var scoreKey = entry.date + '|' + entry.className + '|' + entry.round + '|' + entry.regNumber + '|' + entry.entryType;
-                var score = '';
-                var placement = '';
-                
-                if (digitalScores[scoreKey]) {
-                    score = digitalScores[scoreKey].score || '';
-                    placement = digitalScores[scoreKey].placement || '';
-                }
-                
-                // Get running order
-                var runningOrderPos = '';
-                var orderKey = entry.date + '|' + entry.className + '|' + entry.round;
-                if (runningOrders[orderKey]) {
-                    var order = runningOrders[orderKey];
-                    for (var j = 0; j < order.length; j++) {
-                        if (order[j].regNumber === entry.regNumber && order[j].entryType === entry.entryType) {
-                            runningOrderPos = j + 1;
-                            break;
-                        }
-                    }
-                }
-                
-                csv += entry.regNumber + ',' + entry.callName + ',' + entry.handler + ',' + entry.date + ',' + 
-                       entry.className + ',' + entry.round + ',' + entry.judge + ',' + entry.entryType + ',' + 
-                       score + ',' + placement + ',' + runningOrderPos + '\n';
-            }
-            
-            downloadFile(csv, 'cross_reference_grid.csv', 'text/csv');
-            showStatusMessage('Cross-reference grid exported successfully!', 'success');
-        }
-
-        // Continue with remaining functions...
-        // [The script would continue with all the existing functions for trial setup, entry forms, results, running orders, score sheets, score entry, etc.]
-
-        // Trial setup functions
-        function generateDays() {
-            var numDays = parseInt(document.getElementById('trialDays').value);
-            if (!numDays || numDays < 1) {
-                alert('Please enter a valid number of days');
-                return;
-            }
-
-            totalDays = numDays;
-            savedDays = 0;
-            var container = document.getElementById('daysContainer');
-            container.innerHTML = '';
-
-            for (var i = 1; i <= numDays; i++) {
-                createDaySection(i, container);
-            }
-        }
-
-        function createDaySection(dayNum, container) {
-            var dayDiv = document.createElement('div');
-            dayDiv.className = 'day-container';
-            dayDiv.innerHTML = '<div class="day-header">Day ' + dayNum + '</div>' +
-                '<div class="form-group">' +
-                '<span class="label">Date for Day ' + dayNum + ':</span>' +
-                '<input type="date" id="date_' + dayNum + '">' +
-                '</div>' +
-                '<div class="classes-section<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2420,3 +1550,874 @@
         </div>
     </div>
 </body>
+<script>
+        // Global variables
+        var currentUser = null;
+        var currentTrialId = null;
+        var dogData = [];
+        var availableClasses = [];
+        var availableJudges = [];
+        var trialConfig = [];
+        var entryResults = [];
+        var runningOrders = {}; // Store custom running orders
+        var digitalScores = {}; // Store digital scores
+        var totalDays = 0;
+        var savedDays = 0;
+
+        // Load JSON data automatically on page load
+        function loadDogData() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', './data.json', true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        try {
+                            var data = JSON.parse(xhr.responseText);
+                            
+                            if (Array.isArray(data) && data.length > 0) {
+                                dogData = data;
+                                availableClasses = getUniqueValues(data, 'className', 'class');
+                                availableJudges = getUniqueValues(data, 'judge');
+                                console.log('Dog data loaded successfully:', dogData.length, 'records');
+                                showStatusMessage('Dog data loaded successfully!', 'success');
+                            } else {
+                                console.warn('JSON file appears to be empty or invalid format');
+                                loadFallbackData();
+                            }
+                        } catch (error) {
+                            console.error('Error parsing JSON data:', error);
+                            loadFallbackData();
+                        }
+                    } else {
+                        console.error('Could not load data.json');
+                        loadFallbackData();
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        function getUniqueValues(data, field1, field2) {
+            var values = [];
+            for (var i = 0; i < data.length; i++) {
+                var value = data[i][field1] || data[i][field2];
+                if (value && values.indexOf(value) === -1) {
+                    values.push(value);
+                }
+            }
+            return values;
+        }
+
+        function loadFallbackData() {
+            dogData = [
+                { regNumber: "12345", callName: "Buddy" },
+                { regNumber: "67890", callName: "Luna" },
+                { regNumber: "11111", callName: "Max" },
+                { regNumber: "22222", callName: "Bella" }
+            ];
+            availableClasses = ["Novice A", "Novice B", "Open A", "Open B", "Utility A", "Utility B"];
+            availableJudges = ["Judge Smith", "Judge Johnson", "Judge Williams", "Judge Brown", "Judge Davis"];
+            showStatusMessage('Using default data - could not load data.json', 'warning');
+        }
+
+        // Authentication functions
+        function showAuthTab(tab, element) {
+            var tabs = document.querySelectorAll('.auth-tab');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+            element.classList.add('active');
+            
+            var forms = document.querySelectorAll('.auth-form');
+            for (var i = 0; i < forms.length; i++) {
+                forms[i].classList.remove('active');
+            }
+            document.getElementById(tab + 'Form').classList.add('active');
+        }
+
+        function handleLogin(event) {
+            event.preventDefault();
+            
+            var username = document.getElementById('loginUsername').value;
+            var password = document.getElementById('loginPassword').value;
+            var users = JSON.parse(localStorage.getItem('trialUsers') || '{}');
+            
+            if (users[username] && users[username].password === password) {
+                currentUser = users[username];
+                showMainApp();
+                loadUserTrials();
+            } else {
+                alert('Invalid username or password');
+            }
+        }
+
+        function handleRegister(event) {
+            event.preventDefault();
+            
+            var username = document.getElementById('regUsername').value;
+            var password = document.getElementById('regPassword').value;
+            var confirmPassword = document.getElementById('regConfirmPassword').value;
+            var fullName = document.getElementById('regFullName').value;
+            var email = document.getElementById('regEmail').value;
+            
+            if (password !== confirmPassword) {
+                alert('Passwords do not match');
+                return;
+            }
+            
+            var users = JSON.parse(localStorage.getItem('trialUsers') || '{}');
+            
+            if (users[username]) {
+                alert('Username already exists');
+                return;
+            }
+            
+            users[username] = {
+                username: username,
+                password: password,
+                fullName: fullName,
+                email: email,
+                created: new Date().toISOString()
+            };
+            
+            localStorage.setItem('trialUsers', JSON.stringify(users));
+            alert('Registration successful! Please login.');
+            showAuthTab('login', document.querySelector('.auth-tab'));
+        }
+
+        function showMainApp() {
+            document.getElementById('authOverlay').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+            document.getElementById('userInfo').textContent = 'Welcome, ' + currentUser.fullName;
+        }
+
+        function logout() {
+            currentUser = null;
+            currentTrialId = null;
+            document.getElementById('authOverlay').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+            
+            var inputs = document.querySelectorAll('input');
+            for (var i = 0; i < inputs.length; i++) {
+                inputs[i].value = '';
+            }
+        }
+
+        // Trial management functions
+        function loadUserTrials() {
+            var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
+            var container = document.getElementById('myTrialsList');
+            
+            if (Object.keys(userTrials).length === 0) {
+                container.innerHTML = '<p style="color: #666; font-style: italic;">No trials yet. Create your first trial!</p>';
+                return;
+            }
+            
+            var html = '';
+            for (var trialId in userTrials) {
+                if (userTrials.hasOwnProperty(trialId)) {
+                    var trial = userTrials[trialId];
+                    var created = new Date(trial.created).toLocaleDateString();
+                    var days = trial.config ? getUniqueDays(trial.config).length : 0;
+                    
+                    // Get current entry count by syncing with public storage
+                    var publicTrials = JSON.parse(localStorage.getItem('publicTrials') || '{}');
+                    var userEntries = trial.results || [];
+                    var publicEntries = (publicTrials[trialId] && publicTrials[trialId].results) ? publicTrials[trialId].results : [];
+                    var totalEntries = mergeEntries(userEntries, publicEntries).length;
+                    
+                    var trialName = trial.name || 'Untitled Trial';
+                    var trialStatus = (trial.config && trial.config.length > 0) ? 'Configured' : 'Setup Incomplete';
+                    var statusColor = (trial.config && trial.config.length > 0) ? '#28a745' : '#ffc107';
+                    
+                    html += '<div class="trial-item">' +
+                        '<div class="trial-info">' +
+                        '<div class="trial-name">' + trialName + '</div>' +
+                        '<div class="trial-meta">Created: ' + created + ' | Days: ' + days + ' | Entries: ' + totalEntries + '</div>' +
+                        '<div class="trial-status" style="color: ' + statusColor + '; font-size: 12px; font-weight: bold;">' + trialStatus + '</div>' +
+                        '</div>' +
+                        '<div class="trial-actions">' +
+                        '<button class="edit-btn" onclick="editTrial(\'' + trialId + '\')">Edit</button>';
+                    
+                    // Add Copy Link button if trial is configured
+                    if (trial.config && trial.config.length > 0) {
+                        html += '<button class="edit-btn" onclick="copyTrialLink(\'' + trialId + '\')" style="background: #17a2b8;">Copy Link</button>';
+                    }
+                    
+                    html += '<button class="delete-btn" onclick="deleteTrial(\'' + trialId + '\')">Delete</button>' +
+                        '</div>' +
+                        '</div>';
+                }
+            }
+            container.innerHTML = html;
+        }
+
+        function copyTrialLink(trialId) {
+            var baseURL = window.location.origin + window.location.pathname;
+            var shareableURL = baseURL + '?trial=' + trialId + '&mode=entry';
+            
+            // Create temporary input to copy text
+            var tempInput = document.createElement('input');
+            tempInput.value = shareableURL;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            tempInput.setSelectionRange(0, 99999);
+            
+            try {
+                document.execCommand('copy');
+                showStatusMessage('Entry form link copied to clipboard!', 'success');
+            } catch (err) {
+                showStatusMessage('Could not copy link. URL: ' + shareableURL, 'warning');
+            }
+            
+            document.body.removeChild(tempInput);
+        }
+
+        function getUniqueDays(config) {
+            var days = [];
+            for (var i = 0; i < config.length; i++) {
+                if (days.indexOf(config[i].day) === -1) {
+                    days.push(config[i].day);
+                }
+            }
+            return days;
+        }
+
+        function createNewTrial() {
+            currentTrialId = 'trial_' + Date.now();
+            document.getElementById('trialTitle').textContent = 'New Trial Setup';
+            document.getElementById('trialName').value = '';
+            document.getElementById('trialDays').value = '';
+            document.getElementById('daysContainer').innerHTML = '';
+            trialConfig = [];
+            entryResults = [];
+            runningOrders = {};
+            digitalScores = {};
+            updateTrialOptions();
+            updateResultsDisplay();
+            updateCrossReferenceDisplay();
+            showTab('setup', document.querySelector('.nav-tab'));
+        }
+
+        function editTrial(trialId) {
+            var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
+            var trial = userTrials[trialId];
+            
+            if (!trial) {
+                alert('Trial not found');
+                return;
+            }
+            
+            currentTrialId = trialId;
+            document.getElementById('trialTitle').textContent = 'Editing: ' + (trial.name || 'Untitled Trial');
+            document.getElementById('trialName').value = trial.name || '';
+            
+            trialConfig = trial.config || [];
+            runningOrders = trial.runningOrders || {};
+            digitalScores = trial.digitalScores || {};
+            
+            // Load entries from both user storage and public storage, then merge
+            var userEntries = trial.results || [];
+            var publicTrials = JSON.parse(localStorage.getItem('publicTrials') || '{}');
+            var publicEntries = (publicTrials[trialId] && publicTrials[trialId].results) ? publicTrials[trialId].results : [];
+            
+            // Merge entries and remove duplicates based on timestamp
+            entryResults = mergeEntries(userEntries, publicEntries);
+            
+            // Save merged entries back to user storage
+            userTrials[trialId].results = entryResults;
+            localStorage.setItem('trials_' + currentUser.username, JSON.stringify(userTrials));
+            
+            if (trialConfig.length > 0) {
+                var maxDay = getMaxDay(trialConfig);
+                document.getElementById('trialDays').value = maxDay;
+                generateDays();
+                
+                setTimeout(function() {
+                    populateExistingTrialData();
+                }, 100);
+            }
+            
+            updateTrialOptions();
+            updateResultsDisplay();
+            updateCrossReferenceDisplay();
+            showTab('setup', document.querySelector('.nav-tab'));
+        }
+
+        function mergeEntries(userEntries, publicEntries) {
+            var merged = [];
+            var timestamps = {};
+            
+            // Add user entries first
+            for (var i = 0; i < userEntries.length; i++) {
+                merged.push(userEntries[i]);
+                timestamps[userEntries[i].timestamp] = true;
+            }
+            
+            // Add public entries that don't already exist
+            for (var i = 0; i < publicEntries.length; i++) {
+                if (!timestamps[publicEntries[i].timestamp]) {
+                    merged.push(publicEntries[i]);
+                    timestamps[publicEntries[i].timestamp] = true;
+                }
+            }
+            
+            return merged;
+        }
+
+        function getMaxDay(config) {
+            var max = 0;
+            for (var i = 0; i < config.length; i++) {
+                if (config[i].day > max) {
+                    max = config[i].day;
+                }
+            }
+            return max;
+        }
+
+        function populateExistingTrialData() {
+            for (var i = 0; i < trialConfig.length; i++) {
+                var config = trialConfig[i];
+                var dayNum = config.day;
+                var dateInput = document.getElementById('date_' + dayNum);
+                if (dateInput) {
+                    dateInput.value = config.date;
+                }
+                
+                var classInput = document.getElementById('class_' + dayNum + '_' + config.classNum);
+                if (classInput) {
+                    classInput.value = config.className;
+                }
+                
+                var judgeInput = document.getElementById('judge_' + dayNum + '_' + config.classNum + '_' + config.roundNum);
+                if (judgeInput) {
+                    judgeInput.value = config.judge;
+                }
+                
+                var feoInput = document.getElementById('feo_' + dayNum + '_' + config.classNum + '_' + config.roundNum);
+                if (feoInput) {
+                    feoInput.checked = config.feoOffered || false;
+                }
+            }
+        }
+
+        function deleteTrial(trialId) {
+            if (confirm('Are you sure you want to delete this trial? This action cannot be undone.')) {
+                var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
+                delete userTrials[trialId];
+                localStorage.setItem('trials_' + currentUser.username, JSON.stringify(userTrials));
+                loadUserTrials();
+            }
+        }
+
+        function saveTrialData() {
+            if (!currentUser) {
+                alert("Please log in first.");
+                return;
+            }
+            
+            if (!currentTrialId) {
+                alert("Please create a new trial first.");
+                return;
+            }
+            
+            var trialName = document.getElementById('trialName').value.trim();
+            if (!trialName) {
+                alert("Please enter a trial name.");
+                return;
+            }
+
+            if (trialConfig.length === 0) {
+                alert("Please configure at least one day before saving the trial.");
+                return;
+            }
+            
+            var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
+            
+            var trialData = {
+                name: trialName,
+                config: trialConfig,
+                results: entryResults,
+                runningOrders: runningOrders,
+                digitalScores: digitalScores,
+                owner: currentUser.username,
+                created: userTrials[currentTrialId] && userTrials[currentTrialId].created ? userTrials[currentTrialId].created : new Date().toISOString(),
+                updated: new Date().toISOString()
+            };
+            
+            userTrials[currentTrialId] = trialData;
+            localStorage.setItem('trials_' + currentUser.username, JSON.stringify(userTrials));
+            
+            var publicTrials = JSON.parse(localStorage.getItem('publicTrials') || '{}');
+            publicTrials[currentTrialId] = trialData;
+            localStorage.setItem('publicTrials', JSON.stringify(publicTrials));
+            
+            generateShareableURL();
+            document.getElementById('entryFormLink').style.display = 'block';
+            showStatusMessage("Trial saved successfully!", "success");
+            loadUserTrials();
+        }
+
+        // Tab functions
+        function showTab(tabName, element) {
+            var tabs = document.querySelectorAll('.nav-tab');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+            if (element) {
+                element.classList.add('active');
+            }
+            
+            var contents = document.querySelectorAll('.tab-content');
+            for (var i = 0; i < contents.length; i++) {
+                contents[i].classList.remove('active');
+            }
+            document.getElementById(tabName).classList.add('active');
+            
+            // If switching to Results tab, sync entries from public storage
+            if (tabName === 'results' && currentTrialId && currentUser) {
+                syncEntriesFromPublic();
+            }
+            
+            // If switching to Cross-Reference tab, load the grid
+            if (tabName === 'cross-reference' && currentTrialId) {
+                loadCrossReferenceTab();
+            }
+            
+            // If switching to Running Order tab, load running orders
+            if (tabName === 'running-order' && currentTrialId) {
+                loadRunningOrderManagement();
+            }
+            
+            // If switching to Score Sheets tab, load date selection
+            if (tabName === 'score-sheets' && currentTrialId) {
+                loadScoreSheetsManagement();
+            }
+            
+            // If switching to Score Entry tab, load digital scoring
+            if (tabName === 'score-entry' && currentTrialId) {
+                loadDigitalScoreEntry();
+            }
+        }
+
+        function syncEntriesFromPublic() {
+            if (!currentTrialId || !currentUser) return;
+            
+            var userTrials = JSON.parse(localStorage.getItem('trials_' + currentUser.username) || '{}');
+            var publicTrials = JSON.parse(localStorage.getItem('publicTrials') || '{}');
+            
+            if (userTrials[currentTrialId] && publicTrials[currentTrialId]) {
+                var userEntries = userTrials[currentTrialId].results || [];
+                var publicEntries = publicTrials[currentTrialId].results || [];
+                
+                // Merge entries
+                entryResults = mergeEntries(userEntries, publicEntries);
+                
+                // Save back to user storage
+                userTrials[currentTrialId].results = entryResults;
+                userTrials[currentTrialId].updated = new Date().toISOString();
+                localStorage.setItem('trials_' + currentUser.username, JSON.stringify(userTrials));
+                
+                // Update display
+                updateResultsDisplay();
+                updateCrossReferenceDisplay();
+                
+                // Update trial count in dashboard
+                loadUserTrials();
+            }
+        }
+
+        // Cross-Reference Grid Functions
+        function loadCrossReferenceTab() {
+            if (trialConfig.length === 0) {
+                document.getElementById('crossReferenceGrid').innerHTML = 
+                    '<p style="text-align: center; color: #666; padding: 40px;">No trial data available. Please complete trial setup first.</p>';
+                return;
+            }
+            
+            populateFilterOptions();
+            updateCrossReferenceDisplay();
+        }
+
+        function populateFilterOptions() {
+            // Populate date filter
+            var dateFilter = document.getElementById('filterDate');
+            var dates = [];
+            for (var i = 0; i < trialConfig.length; i++) {
+                if (dates.indexOf(trialConfig[i].date) === -1) {
+                    dates.push(trialConfig[i].date);
+                }
+            }
+            dates.sort();
+            
+            dateFilter.innerHTML = '<option value="">All Dates</option>';
+            for (var i = 0; i < dates.length; i++) {
+                dateFilter.innerHTML += '<option value="' + dates[i] + '">' + dates[i] + '</option>';
+            }
+            
+            // Populate class filter
+            var classFilter = document.getElementById('filterClass');
+            var classes = [];
+            for (var i = 0; i < trialConfig.length; i++) {
+                if (classes.indexOf(trialConfig[i].className) === -1) {
+                    classes.push(trialConfig[i].className);
+                }
+            }
+            classes.sort();
+            
+            classFilter.innerHTML = '<option value="">All Classes</option>';
+            for (var i = 0; i < classes.length; i++) {
+                classFilter.innerHTML += '<option value="' + classes[i] + '">' + classes[i] + '</option>';
+            }
+        }
+
+        function updateCrossReferenceDisplay() {
+            if (trialConfig.length === 0) return;
+            
+            var filteredEntries = getFilteredEntries();
+            var gridHTML = generateCrossReferenceGrid(filteredEntries);
+            document.getElementById('crossReferenceGrid').innerHTML = gridHTML;
+            
+            // Update entry count
+            document.getElementById('gridEntryCount').textContent = filteredEntries.length + ' entries displayed';
+        }
+
+        function getFilteredEntries() {
+            var filtered = [];
+            var regFilter = document.getElementById('filterReg').value.toLowerCase();
+            var handlerFilter = document.getElementById('filterHandler').value.toLowerCase();
+            var dateFilter = document.getElementById('filterDate').value;
+            var classFilter = document.getElementById('filterClass').value;
+            var entryTypeFilter = document.getElementById('filterEntryType').value;
+            var scoredFilter = document.getElementById('filterScored').value;
+            
+            for (var i = 0; i < entryResults.length; i++) {
+                var entry = entryResults[i];
+                
+                // Apply filters
+                if (regFilter && entry.regNumber.toLowerCase().indexOf(regFilter) === -1) continue;
+                if (handlerFilter && entry.handler.toLowerCase().indexOf(handlerFilter) === -1) continue;
+                if (dateFilter && entry.date !== dateFilter) continue;
+                if (classFilter && entry.className !== classFilter) continue;
+                if (entryTypeFilter && entry.entryType !== entryTypeFilter) continue;
+                
+                // Apply scored filter
+                if (scoredFilter) {
+                    var scoreKey = entry.date + '|' + entry.className + '|' + entry.round + '|' + entry.regNumber + '|' + entry.entryType;
+                    var hasScore = digitalScores[scoreKey] && (digitalScores[scoreKey].score !== '' || digitalScores[scoreKey].placement !== '');
+                    
+                    if (scoredFilter === 'scored' && !hasScore) continue;
+                    if (scoredFilter === 'unscored' && hasScore) continue;
+                }
+                
+                filtered.push(entry);
+            }
+            
+            return filtered;
+        }
+
+        function generateCrossReferenceGrid(entries) {
+            if (entries.length === 0) {
+                return '<p style="text-align: center; color: #666; padding: 40px;">No entries match the current filters.</p>';
+            }
+            
+            // Group entries by dog
+            var dogGroups = {};
+            for (var i = 0; i < entries.length; i++) {
+                var entry = entries[i];
+                var dogKey = entry.regNumber + '|' + entry.callName + '|' + entry.handler;
+                if (!dogGroups[dogKey]) {
+                    dogGroups[dogKey] = {
+                        regNumber: entry.regNumber,
+                        callName: entry.callName,
+                        handler: entry.handler,
+                        entries: []
+                    };
+                }
+                dogGroups[dogKey].entries.push(entry);
+            }
+            
+            // Create column structure (Date > Class > Round combinations)
+            var columns = [];
+            var columnMap = {};
+            
+            for (var i = 0; i < trialConfig.length; i++) {
+                var config = trialConfig[i];
+                var colKey = config.date + '|' + config.className + '|' + config.roundNum;
+                if (!columnMap[colKey]) {
+                    columnMap[colKey] = {
+                        date: config.date,
+                        className: config.className,
+                        roundNum: config.roundNum,
+                        judge: config.judge,
+                        feoOffered: config.feoOffered
+                    };
+                    columns.push(columnMap[colKey]);
+                }
+            }
+            
+            // Sort columns by date, then class, then round
+            columns.sort(function(a, b) {
+                if (a.date !== b.date) return new Date(a.date) - new Date(b.date);
+                if (a.className !== b.className) return a.className.localeCompare(b.className);
+                return a.roundNum - b.roundNum;
+            });
+            
+            var html = '<table class="grid-table">';
+            
+            // Generate header rows
+            html += generateGridHeaders(columns);
+            
+            // Generate data rows
+            var sortedDogs = Object.keys(dogGroups).sort(function(a, b) {
+                return dogGroups[a].regNumber.localeCompare(dogGroups[b].regNumber);
+            });
+            
+            for (var d = 0; d < sortedDogs.length; d++) {
+                var dogKey = sortedDogs[d];
+                var dog = dogGroups[dogKey];
+                html += generateGridDataRow(dog, columns);
+            }
+            
+            html += '</table>';
+            return html;
+        }
+
+        function generateGridHeaders(columns) {
+            var html = '';
+            
+            // Create grouped headers for dates
+            var dateGroups = {};
+            var classGroups = {};
+            
+            for (var i = 0; i < columns.length; i++) {
+                var col = columns[i];
+                var dateKey = col.date;
+                var classKey = col.date + '|' + col.className;
+                
+                if (!dateGroups[dateKey]) {
+                    dateGroups[dateKey] = [];
+                }
+                if (!classGroups[classKey]) {
+                    classGroups[classKey] = [];
+                }
+                
+                dateGroups[dateKey].push(col);
+                classGroups[classKey].push(col);
+            }
+            
+            // Date header row
+            html += '<tr>';
+            html += '<th rowspan="3" class="dog-info">Reg #</th>';
+            html += '<th rowspan="3" class="handler-info">Handler</th>';
+            
+            for (var dateKey in dateGroups) {
+                var dateGroup = dateGroups[dateKey];
+                html += '<th colspan="' + dateGroup.length + '" class="date-header-group">' + dateKey + '</th>';
+            }
+            html += '</tr>';
+            
+            // Class header row
+            html += '<tr>';
+            for (var classKey in classGroups) {
+                var classGroup = classGroups[classKey];
+                var className = classKey.split('|')[1];
+                html += '<th colspan="' + classGroup.length + '" class="class-header-group">' + className + '</th>';
+            }
+            html += '</tr>';
+            
+            // Round/Judge header row
+            html += '<tr>';
+            for (var i = 0; i < columns.length; i++) {
+                var col = columns[i];
+                html += '<th class="judge-header">R' + col.roundNum + '<br>' + col.judge + '</th>';
+            }
+            html += '</tr>';
+            
+            return html;
+        }
+
+        function generateGridDataRow(dog, columns) {
+            var html = '<tr>';
+            
+            // Dog info columns
+            html += '<td class="dog-info">' + dog.regNumber + '<br><small>' + dog.callName + '</small></td>';
+            html += '<td class="handler-info">' + dog.handler + '</td>';
+            
+            // Entry columns
+            for (var i = 0; i < columns.length; i++) {
+                var col = columns[i];
+                html += '<td class="entry-cell">';
+                
+                // Find entries for this dog in this column
+                var regularEntry = null;
+                var feoEntry = null;
+                
+                for (var j = 0; j < dog.entries.length; j++) {
+                    var entry = dog.entries[j];
+                    if (entry.date === col.date && 
+                        entry.className === col.className && 
+                        entry.round == col.roundNum) {
+                        if (entry.entryType === 'regular') {
+                            regularEntry = entry;
+                        } else if (entry.entryType === 'feo') {
+                            feoEntry = entry;
+                        }
+                    }
+                }
+                
+                // Generate entry markers
+                var autoPopulate = document.getElementById('autoPopulateScores').checked;
+                var showRunningOrder = document.getElementById('showRunningOrder').checked;
+                var highlightConflicts = document.getElementById('highlightConflicts').checked;
+                
+                if (regularEntry && feoEntry) {
+                    html += '<span class="entry-marker marker-both">B</span>';
+                } else if (regularEntry) {
+                    var marker = 'R';
+                    var markerClass = 'marker-regular';
+                    
+                    // Check for scores if auto-populate is enabled
+                    if (autoPopulate) {
+                        var scoreKey = regularEntry.date + '|' + regularEntry.className + '|' + regularEntry.round + '|' + regularEntry.regNumber + '|regular';
+                        if (digitalScores[scoreKey] && (digitalScores[scoreKey].score !== '' || digitalScores[scoreKey].placement !== '')) {
+                            marker = '✓';
+                            markerClass = 'marker-scored';
+                        }
+                    }
+                    
+                    html += '<span class="entry-marker ' + markerClass + '">' + marker + '</span>';
+                } else if (feoEntry) {
+                    var marker = 'F';
+                    var markerClass = 'marker-feo';
+                    
+                    // Check for scores if auto-populate is enabled
+                    if (autoPopulate) {
+                        var scoreKey = feoEntry.date + '|' + feoEntry.className + '|' + feoEntry.round + '|' + feoEntry.regNumber + '|feo';
+                        if (digitalScores[scoreKey] && (digitalScores[scoreKey].score !== '' || digitalScores[scoreKey].placement !== '')) {
+                            marker = '✓';
+                            markerClass = 'marker-scored';
+                        }
+                    }
+                    
+                    html += '<span class="entry-marker ' + markerClass + '">' + marker + '</span>';
+                }
+                
+                // Add running order number if enabled
+                if (showRunningOrder && (regularEntry || feoEntry)) {
+                    var entry = regularEntry || feoEntry;
+                    var orderKey = entry.date + '|' + entry.className + '|' + entry.round;
+                    if (runningOrders[orderKey]) {
+                        var order = runningOrders[orderKey];
+                        for (var k = 0; k < order.length; k++) {
+                            if (order[k].regNumber === entry.regNumber && order[k].entryType === entry.entryType) {
+                                html += '<br><small>' + (k + 1) + '</small>';
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                html += '</td>';
+            }
+            
+            html += '</tr>';
+            return html;
+        }
+
+        function applyFilters() {
+            updateCrossReferenceDisplay();
+        }
+
+        function clearFilters() {
+            document.getElementById('filterReg').value = '';
+            document.getElementById('filterHandler').value = '';
+            document.getElementById('filterDate').value = '';
+            document.getElementById('filterClass').value = '';
+            document.getElementById('filterEntryType').value = '';
+            document.getElementById('filterScored').value = '';
+            updateCrossReferenceDisplay();
+        }
+
+        function refreshCrossReference() {
+            if (currentTrialId && currentUser) {
+                syncEntriesFromPublic();
+            }
+            updateCrossReferenceDisplay();
+            showStatusMessage('Cross-reference grid refreshed!', 'success');
+        }
+
+        function exportCrossReference() {
+            var filteredEntries = getFilteredEntries();
+            if (filteredEntries.length === 0) {
+                alert('No entries to export');
+                return;
+            }
+            
+            var csv = 'Registration,Call Name,Handler,Date,Class,Round,Judge,Entry Type,Score,Placement,Running Order\n';
+            
+            for (var i = 0; i < filteredEntries.length; i++) {
+                var entry = filteredEntries[i];
+                
+                // Get score and placement
+                var scoreKey = entry.date + '|' + entry.className + '|' + entry.round + '|' + entry.regNumber + '|' + entry.entryType;
+                var score = '';
+                var placement = '';
+                
+                if (digitalScores[scoreKey]) {
+                    score = digitalScores[scoreKey].score || '';
+                    placement = digitalScores[scoreKey].placement || '';
+                }
+                
+                // Get running order
+                var runningOrderPos = '';
+                var orderKey = entry.date + '|' + entry.className + '|' + entry.round;
+                if (runningOrders[orderKey]) {
+                    var order = runningOrders[orderKey];
+                    for (var j = 0; j < order.length; j++) {
+                        if (order[j].regNumber === entry.regNumber && order[j].entryType === entry.entryType) {
+                            runningOrderPos = j + 1;
+                            break;
+                        }
+                    }
+                }
+                
+                csv += entry.regNumber + ',' + entry.callName + ',' + entry.handler + ',' + entry.date + ',' + 
+                       entry.className + ',' + entry.round + ',' + entry.judge + ',' + entry.entryType + ',' + 
+                       score + ',' + placement + ',' + runningOrderPos + '\n';
+            }
+            
+            downloadFile(csv, 'cross_reference_grid.csv', 'text/csv');
+            showStatusMessage('Cross-reference grid exported successfully!', 'success');
+        }
+
+        // Continue with remaining functions...
+        // [The script would continue with all the existing functions for trial setup, entry forms, results, running orders, score sheets, score entry, etc.]
+
+        // Trial setup functions
+        function generateDays() {
+            var numDays = parseInt(document.getElementById('trialDays').value);
+            if (!numDays || numDays < 1) {
+                alert('Please enter a valid number of days');
+                return;
+            }
+
+            totalDays = numDays;
+            savedDays = 0;
+            var container = document.getElementById('daysContainer');
+            container.innerHTML = '';
+
+            for (var i = 1; i <= numDays; i++) {
+                createDaySection(i, container);
+            }
+        }
+
+        function createDaySection(dayNum, container) {
+            var dayDiv = document.createElement('div');
+            dayDiv.className = 'day-container';
+            dayDiv.innerHTML = '<div class="day-header">Day ' + dayNum + '</div>' +
+                '<div class="form-group">' +
+                '<span class="label">Date for Day ' + dayNum + ':</span>' +
+                '<input type="date" id="date_' + dayNum + '">' +
+                '</div>' +
+                '<div class="classes-section
